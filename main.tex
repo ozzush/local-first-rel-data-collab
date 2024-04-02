@@ -1,0 +1,226 @@
+\documentclass[a4paper, 11pt, oneside]{article}
+
+% To use this template, you have to have a halfway complete LaTeX
+% installation and you have to run pdflatex, followed by bibtex,
+% following by one-two more pdflatex runs.
+%
+% Note thad usimg a spel chequer (e.g. ispell, aspell) is generolz
+% a very guud ideo.
+
+\usepackage[utf8]{inputenc}
+\usepackage[a4paper, top=3cm, bottom=3cm, left=3cm, right=3cm]{geometry}
+\renewcommand{\familydefault}{\sfdefault}
+\usepackage{helvet}
+\usepackage[english]{babel} %% typographie française
+\usepackage[style=numeric, language=english]{biblatex}
+\usepackage{parskip} %% blank lines between paragraphs, no indent
+\usepackage[margin=1cm]{caption}%% give long captions a margin
+\usepackage{booktabs} %% typesetting nice tables
+% \usepackage[cache=false]{minted}%% typesetting code nicely
+\usepackage[pdftex]{graphicx} %% include graphics, preferrably pdf
+\usepackage[pdftex]{hyperref} %% many PDF options can be set here
+\usepackage{amsmath}
+\usepackage{amsthm}
+\usepackage{csquotes}
+\pdfadjustspacing=1 %% force LaTeX-like character spacing
+
+\newcommand{\mylastname}{Sirotkina}
+\newcommand{\myfirstname}{Veronika}
+\newcommand{\mynumber}{30006541}
+\newcommand{\myname}{\myfirstname{} \mylastname{}}
+\newcommand{\mytitle}{Local-first Collaboration on Relational Data}
+\newcommand{\mysupervisor}{??? Anton Podkopaev}
+
+\theoremstyle{definition}
+\newtheorem{definition}{Definition}[section]
+
+\hypersetup{
+pdfauthor={\myname},
+pdftitle={\mytitle},
+pdfkeywords={},
+colorlinks={true},
+linkcolor={blue}
+}
+
+\addbibresource{refs.bib}
+
+\begin{document}
+\pagenumbering{roman}
+
+\thispagestyle{empty}
+
+\begin{flushright}
+\includegraphics[scale=0.8]{img/bsc-logo.png}
+\end{flushright}
+\vspace*{40mm}
+\begin{center}
+\huge \textbf{\mytitle}
+\end{center}
+\vspace*{4mm}
+\begin{center}
+\Large by
+\end{center}
+\vspace*{4mm}
+\begin{center}
+\LARGE \textbf{\myname}
+\end{center}
+\vspace*{20mm}
+\begin{center}
+\Large Bachelor Thesis in Computer Science
+\end{center}
+\vfill
+\begin{flushleft}
+\large Submission: \today \hfill Supervisor: \mysupervisor \\ \rule{\textwidth}{1pt}
+\end{flushleft}
+\begin{center}
+Constructor University $|$ School of Computer Science and Engineering
+\end{center}
+
+\newpage
+\thispagestyle{empty}
+
+\begin{center}
+\Large \textbf{Statutory Declaration}
+\vspace*{8mm}
+\end{center}
+
+\begin{center}
+\begin{tabular}{|l|p{85mm}|}
+\hline
+Family Name, Given/First Name & \mylastname, \myfirstname \\
+Matriculation number          & \mynumber                 \\
+Kind of thesis submitted      & Bachelor Thesis           \\
+\hline
+\end{tabular}
+\vspace*{8mm}
+\end{center}
+
+\subsection*{English: Declaration of Authorship}
+
+I hereby declare that the thesis submitted was created and written solely by
+myself without any external support. Any sources, direct or indirect, are marked
+as such. I am aware of the fact that the contents of the thesis in digital
+form may be revised with regard to usage of unauthorized aid as well as
+whether the whole or parts of it may be identified as plagiarism. I do agree my
+work to be entered into a database for it to be compared with existing sources,
+where it will remain in order to enable further comparisons with future theses.
+This does not grant any rights of reproduction and usage, however.
+
+This document was neither presented to any other examination board nor has it
+been published.
+
+\subsection*{German: Erklärung der Autorenschaft (Urheberschaft)}
+
+Ich erkläre hiermit, dass die vorliegende Arbeit ohne fremde Hilfe
+ausschließlich von mir erstellt und geschrieben worden ist. Jedwede verwendeten
+Quellen, direkter oder indirekter Art, sind als solche kenntlich gemacht worden.
+Mir ist die Tatsache bewusst, dass der Inhalt der Thesis in digitaler Form geprüft
+werden kann im Hinblick darauf, ob es sich ganz oder in Teilen um ein Plagiat
+handelt. Ich bin damit einverstanden, dass meine Arbeit in einer Datenbank
+eingegeben werden kann, um mit bereits bestehenden Quellen verglichen zu werden
+und dort auch verbleibt, um mit zukünftigen Arbeiten verglichen werden zu
+können. Dies berechtigt jedoch nicht zur Verwendung oder Vervielfältigung.
+
+Diese Arbeit wurde noch keiner anderen Prüfungsbehörde vorgelegt noch wurde sie
+bisher veröffentlicht.
+
+\vspace{20mm}
+
+\dotfill\\ Date, Signature
+
+\newpage
+
+\section*{Abstract}
+TODO
+
+\newpage
+\tableofcontents
+
+\clearpage
+\pagenumbering{arabic}
+
+\section{Introduction}
+
+With internet becoming more accessible and cloud-based software gaining momentum, more apps started to heavily depend on the presence of internet connection to work properly. This is especially true for apps that need to synchronize clients' data across multiple devices or apps that allow for real-time collaboration between clients.
+
+The most obvious and maybe the easiest way to enable synchronization across devices is naturally to store an authoritative copy of the data in the cloud and provide a centralized server to manage changes coming from the clients. Real-time collaboration can be achieved by implementing operational transformation algorithms \cite{operational}.
+
+This approach is, of course, viable and is widely used in practice, but it has a big downside. Without internet connection access to the data is either lost completely or it is only available in a read-only mode. The access can also be lost if the provider company's servers are down, or if the company stops supporting the product, or if the company finds the contents of the document inappropriate \cite{googleblock}. 
+
+Local-first software \cite{localfirst} is a new approach to designing collaborative software. In the context of this paper the most notable feature of local-first software is that it allows clients to edit shared documents even when they are offline. The changes can be integrated with the upstream version once the connectivity is reestablished.
+
+GanttProject \cite{ganttsite,ganttrepo} is an open-source tool for building Gantt diagrams. It's originally local-only, but at the current time it also provides a cloud storage \cite{ganttcloudsite}. A work-in-progress module called Colloboque will enable real-time colloboration in GanttProject.
+
+The goal of this project is to enable local-first real-time collaboration in GanttProject by further developing Colloboque.
+
+\section{Background}
+TODO
+\subsection{Operational Transformation}
+TODO
+\subsection{Local-first Software}
+The original paper \cite{localfirst} suggests 7 principles of local-first software. Here I will list 4 which I find the most relevant.
+\begin{itemize}
+    \item \textbf{Synchronization across devices} \\
+    Imagine a client who uses a document editor on multiple devices. Synchronization involves tracking changes made by the client on one device and ensuring these changes are reflected across all other devices used by the client. In the end data on all devices must reach the same state. This is a very convenient feature that lets clients acces their work from any device.
+
+    \item \textbf{The network is optional} \\
+    Nowadays it is normal for many apps to lose most of their functionality if internet connection is unstable. TODO: EXAMPLES. For local-first software it is important that it should retain its core functionality even when the device is offline. The client is still able to view and edit documents as he pleases, and the changes made while being offline are integrated with other replicas when the device connects to the network again.
+
+    \item \textbf{Seamless collaboration} \\
+    Real-time collaboration is a very attractive feature that lets multiplea people work on a single document simultaneously. Some notable examples of web-apps that allow for real-time collaboration are Google Docs, Google Sheets, Figma, etc. Usually such apps don't allow to edit documents offline (TODO: GOOGLE DOCS ALLOWS THIS, WHAT ABOUT GOOGLE SHEETS?).  For local-first software the aim is to provide collaboration functionality on par with cloud-based apps like Figma while retaining optionality of the network.
+
+    \item \textbf{Ultimate ownership and control} \\
+    TODO
+\end{itemize}
+
+\subsection{CRDT}
+CRDT stands for Conflict-Free Replicated Data Type \cite{crdt}. CRDT object has an identifier, content, an initial state, and a set of operations. Any two objects with the same identifiers are called replicas of each other. An abstract state of a CRDT object is represented by the collective result of all read-only operations. CRDT guarantees that all well-formed update operations are commutative and idempotent with respect to the abstract state of an object. Because of these properties, replicas can make updates independently, without communicating wiht other replicas. As long as all updates are eventually communicated, all replicas are guaranteed to end up with the same abstract state.
+
+CRDT types can be further categorized into two groups:  State-based CRDTs and Operation-based CRDTs
+
+\subsubsection{State-based CRDT}
+First, let's define Causal History for state-based CRDT objects.
+
+\begin{definition}[Causal History — state-based]
+    For any replica $x_i$ of $x$:
+\begin{itemize}
+    \item Initially, $C(x_i) = \emptyset$.
+    \item After executing update operation $f$, $C(f(x_i)) = C(x_i) \cup \{f\}$.
+    \item After executing merge against states $x_i, x_j$, $C(merge(x_i, x_j)) = C(x_i) \cup C(x_j)$.
+\end{itemize}
+\end{definition}
+TODO
+
+\subsubsection{Operation-based CRDT}
+TODO
+
+\subsubsection{Automerge}
+Automerge \cite{automerge} is a library that provides a JSON-like CRDT for JavaScript. It was designed specifically for implementing local-first software. Automerge documents support all JSON primitive data types, as well as Map, List, Text, and Counter. 
+
+TODO: AUTOMERGE USAGE EXAMPLE
+
+Automerge documents support both merging full documents and applying individual changes. To define rules for merging documents, it's enough to define rules for merging Maps, Lists, Text and Counters. Full explanation of the merging rules in Automerge can be found in Automerge documentation \cite{automergerules}.
+
+TODO: CONFLICT OBJECT
+
+\subsubsection{Crecto}
+\subsection{Leader-Based Log Replication}
+TODO
+\subsection{Time Warp}
+TODO
+
+\section{Approaches}
+TODO
+\subsection{CRDT approach}
+TODO
+\subsection{Time Warp approach}
+TODO
+\subsection{Transaction replay approach}
+TODO
+
+\section{Implementation}
+
+\newpage
+\printbibliography
+\clearpage
+\end{document}
