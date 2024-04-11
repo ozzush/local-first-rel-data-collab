@@ -11,6 +11,7 @@
 \usepackage[a4paper, top=3cm, bottom=3cm, left=3cm, right=3cm]{geometry}
 \renewcommand{\familydefault}{\sfdefault}
 \usepackage{helvet}
+\usepackage{listings}
 \usepackage[english]{babel} %% typographie française
 \usepackage[style=numeric, language=english]{biblatex}
 \usepackage{parskip} %% blank lines between paragraphs, no indent
@@ -216,7 +217,32 @@ TODO
 \subsection{Time Warp approach}
 TODO
 \subsection{Transaction replay approach}
-TODO
+TODO: POLISH CODE LISTINGS
+
+The Colloboque server stores transaction history and the state of the project after each transaction. When a client loses connection to the server, it keeps commiting transactions locally. When connection is re-established, the set of changes applied by the client is sent to the server. The server then takes the state of the project that the out-of-sync client based its changes on and uses it to start two transactions. The first transaction contains all the changes that the client applied locally, while the second transaction contains all the changes processed by the server while the client was disconnected. The transactions make use of isolation level REPEATABLE READ.
+
+The default mode for transactions in Postgres is READ COMMITTED \cite{tisolevel}. It means that a transaction is allowed to read changes that where committed by other transactions after the current transaction has started. 
+
+\begin{lstlisting}[language=SQL]
+BEGIN;
+SELECT * FROM data; -- 0 rows
+-- another transaction commits inserting a row
+SELECT * FROM data; -- 1 rows
+COMMIT;
+\end{lstlisting}
+
+When using REPEATABLE READ transaction mode, the changes from newly committed transactions are not visible, but if the current transaction makes a conflicting update, it will lead to a serialization error.
+
+\begin{lstlisting}[language=SQL]
+BEGIN TRANSACTION ISOLATION LEVEL REPEATABLE READ;
+SELECT * FROM data; -- 1 rows
+-- another transaction commits deleting a row
+SELECT * FROM data; -- 1 rows
+UPDATE data SET col = 1;
+-- ERROR:  could not serialize access due to concurrent delete
+\end{lstlisting}
+
+With this approach the Postgres database can reliably identify whether the changes that the client made offline produce confilcts. If there are conflicts, they are discarded on the server. The client will then copy the local version of the document, sync with the server and resolve the conflicts by hand.
 
 \section{Implementation}
 
