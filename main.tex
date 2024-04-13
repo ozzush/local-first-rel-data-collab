@@ -157,7 +157,33 @@ The goal of this project is to enable local-first real-time collaboration in Gan
 \section{Background}
 TODO
 \subsection{Operational Transformation}
-TODO
+
+Operational Transformation \cite{ot} or OT is a technology for managing concurrent updates, particularly in collaboration software. OT algorithms assume that there are multiple clients. All clients have a replica of the same document and they can modify the document with a predetermined set of operations independently from each other.
+
+When a client recieves an update from another client, he doesn't apply the recieved operation immediately. He compares the incoming change against other observed concurrent changes, transforms the operation and then applies it. The transformation algorithm must ensure that the states of all clients converge.
+
+\subsubsection{OT for plain text}
+TODO: PICTURE
+
+In this section I will present an example of how OT can be used for managing concurrent insertions in plain text documents.
+
+There are two clients, Alice and Bob, and each of them has a copy of a document. The document contains a single sentence: "Hello World". The only defined operation is an insertion of a single character at a specified position: \verb|insert(char, pos)|.
+
+
+Alice inserts a comma after "Hello" with \verb|insert(',', 5)| and gets "Hello, World", while Bob inserts an exclamation mark after "World" with \verb|insert('!', 11)| and gets "Hello World!". After that they exchange the performed operations.
+
+If Alice and Bob both apply each other's changes as is, Alice will get "Hello, Worl!d", and Bob will get "Hello, World!" - the two documents now diverge. Instead, when Alice gets \verb|insert('!', 11)| she compares it with the operation she performed concurrently \verb|insert(',', 5)|, sees that the indexing has shifted and transforms \verb|insert('!', 11)| into \verb|insert('!', 12)|. After applying this transformed operation she will get "Hello, World!". 
+
+Bob performs similar actions to learn that he doesn't need to transform Alice's operation, applies it as is and also gets "Hello, World!".
+
+\subsubsection{Google Wave}
+
+Google Wave \cite{wavewiki,waveyt} was a communication platform developed by Google using Operational Transformation approach. It was launched in September 2009. Google Wave aimed to revolutionize communication by combining elements of email, instant messaging, wikis, and social networks into a single platform.
+
+Google Wave had features such as real-time collaboration, allowing users to work together on documents known as "waves" by typing messages, inserting images, and adding other content. It supported the embedding of media objects like videos, maps, and polls directly into waves.
+
+Despite its innovative features, Google Wave failed to gain popularity. Google discontinued Google Wave in August 2010 due to low user adoption, but its technology and concepts influenced subsequent Google products like Google Docs and Google Drive.
+
 \subsection{Local-first Software}
 The original paper \cite{localfirst} suggests 7 principles of local-first software. Here I will list 4 which I find the most relevant.
 \begin{itemize}
@@ -219,7 +245,10 @@ TODO
 \subsection{Transaction replay approach}
 TODO: POLISH CODE LISTINGS
 
-The Colloboque server stores transaction history and the state of the project after each transaction. When a client loses connection to the server, it keeps commiting transactions locally. When connection is re-established, the set of changes applied by the client is sent to the server. The server then takes the state of the project that the out-of-sync client based its changes on and uses it to start two transactions. The first transaction contains all the changes that the client applied locally, while the second transaction contains all the changes processed by the server while the client was disconnected. The transactions make use of isolation level REPEATABLE READ.
+The Colloboque server stores transaction history and the state of the project after each transaction. When a client loses connection to the server, it keeps commiting transactions locally. When connection is re-established, the set of changes applied by the client is sent to the server. The server then takes the state of the project that the out-of-sync client based its changes on and uses it to start two transactions. The first transaction contains all the changes that the client applied locally, while the second transaction contains all the changes processed by the server while the client was disconnected. 
+
+\subsubsection{Postgres transaction isolation levels} 
+In the described approach transactions have to make use of isolation level REPEATABLE READ, which is stronger than the default transaction isolation level.
 
 The default mode for transactions in Postgres is READ COMMITTED \cite{tisolevel}. It means that a transaction is allowed to read changes that where committed by other transactions after the current transaction has started. 
 
@@ -242,7 +271,7 @@ UPDATE data SET col = 1;
 -- ERROR:  could not serialize access due to concurrent delete
 \end{lstlisting}
 
-With this approach the Postgres database can reliably identify whether the changes that the client made offline produce confilcts. If there are conflicts, they are discarded on the server. The client will then copy the local version of the document, sync with the server and resolve the conflicts by hand.
+With this approach the Postgres database can reliably identify whether the changes that the client made offline produce confilcts. If there are conflicts, the server discards the changes. The client will then have to sync with the server. An out-of-sync version of the document can be saved as a copy so that the client can compare the two versions manually.
 
 \section{Implementation}
 
