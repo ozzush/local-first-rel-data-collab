@@ -178,14 +178,14 @@ Bob performs similar actions to learn that he doesn't need to transform Alice's 
 
 \subsubsection{Google Wave}
 
-Google Wave \cite{wavewiki,waveyt} was a communication platform developed by Google using Operational Transformation approach. It was launched in September 2009. Google Wave aimed to revolutionize communication by combining elements of email, instant messaging, wikis, and social networks into a single platform.
+Google Wave \cite{wavewiki,waveyt} was a communication platform developed by Google using Operational Transformation approach. It was launched in September 2009. Google Wave combined elements of email, instant messaging, wikis, and social networks into a single platform.
 
 Google Wave had features such as real-time collaboration, allowing users to work together on documents known as "waves" by typing messages, inserting images, and adding other content. It supported the embedding of media objects like videos, maps, and polls directly into waves.
 
 Despite its innovative features, Google Wave failed to gain popularity. Google discontinued Google Wave in August 2010 due to low user adoption, but its technology and concepts influenced subsequent Google products like Google Docs and Google Drive.
 
 \subsection{Local-first Software}
-The original paper \cite{localfirst} suggests 7 principles of local-first software. Here I will list 4 which I find the most relevant.
+Local-first software was first formalized in 2019. The original paper \cite{localfirst} suggests 7 principles of local-first software. Here I will list 4 which I find the most relevant.
 \begin{itemize}
     \item \textbf{Synchronization across devices} \\
     Imagine a client who uses a document editor on multiple devices. Synchronization involves tracking changes made by the client on one device and ensuring these changes are reflected across all other devices used by the client. In the end data on all devices must reach the same state. This is a very convenient feature that lets clients acces their work from any device.
@@ -194,10 +194,10 @@ The original paper \cite{localfirst} suggests 7 principles of local-first softwa
     Nowadays it is normal for many apps to lose most of their functionality if internet connection is unstable. TODO: EXAMPLES. For local-first software it is important that it should retain its core functionality even when the device is offline. The client is still able to view and edit documents as he pleases, and the changes made while being offline are integrated with other replicas when the device connects to the network again.
 
     \item \textbf{Seamless collaboration} \\
-    Real-time collaboration is a very attractive feature that lets multiplea people work on a single document simultaneously. Some notable examples of web-apps that allow for real-time collaboration are Google Docs, Google Sheets, Figma, etc. Usually such apps don't allow to edit documents offline (TODO: GOOGLE DOCS ALLOWS THIS, WHAT ABOUT GOOGLE SHEETS?).  For local-first software the aim is to provide collaboration functionality on par with cloud-based apps like Figma while retaining optionality of the network.
+    Real-time collaboration is a very attractive feature that lets multiplea people work on a single document simultaneously. Some notable examples of web-apps that allow for real-time collaboration are Google Docs, Google Sheets, Figma, etc. Usually such apps don't allow to edit documents offline with some Google products like Google Docs being an exception. For local-first software the aim is to provide collaboration functionality on par with cloud-based apps like Figma while retaining optionality of the network.
 
     \item \textbf{Ultimate ownership and control} \\
-    TODO
+    As a popular saying goes, there is no cloud - it's just someone else's computer. When user data is stored in the cloud, the ultimate ownership of the data belongs to the corporation that provides the software. The user might lose acces to their data because of technical problems, or, what's more concerning, the company might bar the user from accessing their data on a whim. For example, by introducing a paid subscription or banning the user because their data presumably violates the service's policies \cite{googleblock}. With local-first software, the data physically belongs to the user and the service provider can't take the user's access.
 \end{itemize}
 
 \subsection{CRDT}
