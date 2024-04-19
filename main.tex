@@ -344,9 +344,18 @@ The approach with issuing undo updates is not fit for all cases. For example som
 % TODO
 
 \section{Approaches}
-TODO
+In this section I will describe approaches considered during the course of my work.
+
 \subsection{CRDT approach}
-TODO
+The first approach to enabling local-first collaboration in GanttProject is to implement a CRDT for relational data. With a robust relational data CRDT, the task would be very straightforward. Each client can store a replica of a CRDT object and propagate its updates to other clients either through a centralized server or a peer-to-peer connection.
+
+The main challenge comes from implementing a relational data CRDT. The paper referenced in Section 2.3.4 gives a general direction on how such a CRDT can be implemented, but this is still no easy task. It's also unclear whether additional problems could arise due to the limited support of SQL features that the described CRDT provides. For example, it seems impossible to implement an auto-increment attribute. When there is a need to generate unique ids for newly inserted rows the authors of the paper generate random ids instead. There are probably many more such examples, but listing them requires further analysis. 
+
+The described relational data CRDT is implemented in a library for Elixir called Crecto. It can't be used easily since GanttProject is implemented in Java and Kotlin. 
+
+Taking into account the amount of work required to employ this approach and the assiciated concerns it was decided to think of other approaches which would be easier to implement and integrate with the existing codebase.
+
+
 \subsection{Time Warp approach}
 TODO
 \subsection{Transaction replay approach}
