@@ -144,7 +144,7 @@ TODO
 
 With internet becoming more accessible and cloud-based software gaining momentum, more apps started to heavily depend on the presence of internet connection to work properly. This is especially true for apps that need to synchronize clients' data across multiple devices or apps that allow for real-time collaboration between clients.
 
-The most obvious and maybe the easiest way to enable synchronization across devices is naturally to store an authoritative copy of the data in the cloud and provide a centralized server to manage changes coming from the clients. Real-time collaboration can be achieved by implementing operational transformation algorithms \cite{operational}.
+The most obvious and maybe the easiest way to enable synchronization across devices is naturally to store an authoritative copy of the data in the cloud and provide a centralized server to manage changes coming from the clients. Real-time collaboration can be achieved by implementing operational transformation algorithms \cite{ot}.
 
 This approach is, of course, viable and is widely used in practice, but it has a big downside. Without internet connection access to the data is either lost completely or it is only available in a read-only mode. The access can also be lost if the provider company's servers are down, or if the company stops supporting the product, or if the company finds the contents of the document inappropriate \cite{googleblock}. 
 
@@ -201,12 +201,22 @@ Local-first software was first formalized in 2019. The original paper \cite{loca
 \end{itemize}
 
 \subsection{CRDT}
-CRDT stands for Conflict-Free Replicated Data Type \cite{crdt}. CRDT object has an identifier, content, an initial state, and a set of operations. Any two objects with the same identifiers are called replicas of each other. An abstract state of a CRDT object is represented by the collective result of all read-only operations. CRDT guarantees that all well-formed update operations are commutative and idempotent with respect to the abstract state of an object. Because of these properties, replicas can make updates independently, without communicating wiht other replicas. As long as all updates are eventually communicated, all replicas are guaranteed to end up with the same abstract state.
+CRDT stands for Conflict-Free Replicated Data Type \cite{crdt}. It's a type of data structure designed for distributed systems. Objects of CRDTs can be replicated across multiple nodes, and each node can independently update the object. When information about the updates or, depending on the flavour of a particular CRDT specification, the state of each node is shared, CRDTs guarantee that all replicas will eventually reach the same state.
 
-CRDT types can be further categorized into two groups:  State-based CRDTs and Operation-based CRDTs
+CRDT object has an identifier, physical content and an initial state. Any two objects with the same identifiers are called replicas of each other. CRDT specification defines a set of update operations, as well as read-only queries.
+
+A CRDT can implement any logical type like Counter, Set, List, etc. The state of a CRDT's logical type is represented by its abstract state. For example, a Counter CRDT can be implemented as a tuple of values, where each replica can only change its designated value. The abstract state of such CRDT is the sum of all values in a tuple. 
+
+TODO: CLARIFY COUNTER CRDT?
+
+CRDT guarantees that all well-formed update operations are commutative and idempotent with respect to the abstract state of an object. Because of these properties, replicas can make updates independently, without communicating with other replicas. As long as all updates are eventually communicated, all replicas are guaranteed to end up with the same abstract state.
+
+CRDT types can be further categorized into two groups:  state-based CRDTs and operation-based CRDTs. It is worth noting that state-based CRDTs can always be emulated by operation-based CRDTs and operation-based CRDTs can always be emulated by state-based CRDTs. But for some structures it's simpler to think in terms of state-based CRDT, while some feel more natural as an operation-based CRDT.
+
+% For example, consider two implementations for a CRDT counter
 
 \subsubsection{State-based CRDT}
-First, let's define Causal History for state-based CRDT objects.
+For state-based CRDT one has to specify a merge function, which will merge together states of two different replicas. Requirements for the merge function can be formulated in terms of causal history.
 
 \begin{definition}[Causal History — state-based]
     For any replica $x_i$ of $x$:
@@ -216,10 +226,46 @@ First, let's define Causal History for state-based CRDT objects.
     \item After executing merge against states $x_i, x_j$, $C(merge(x_i, x_j)) = C(x_i) \cup C(x_j)$.
 \end{itemize}
 \end{definition}
-TODO
+
+Here is an example implementation of a state-based Counter CRDT
+
+\begin{lstlisting}[language=Java]
+Counter {
+    // initial state
+    val counter = (0, 0, 0)
+
+    // identifier from {0, 1, 2}
+    val id
+
+    // update operation
+    fun increment() {
+        counter[id] += 1
+    }
+
+    // query
+    fun value() = sum(counter)
+
+    // merge function
+    fun merge(c1, c2) {
+        merged = (0, 0, 0)
+        for (i in 0..2) {
+            merged[i] = max(c1[i], c2[i])
+        }
+        return merged
+    }
+}
+\end{lstlisting}
 
 \subsubsection{Operation-based CRDT}
 TODO
+
+\begin{definition}[Causal History — operation-based]
+    For any replica $x_i$ of $x$:
+\begin{itemize}
+    \item Initially, $C(x_i) = \emptyset$.
+    \item After executing update operation $f$, $C(f(x_i)) = C(x_i) \cup \{f\}$.
+\end{itemize}
+\end{definition}
 
 \subsubsection{Automerge}
 Automerge \cite{automerge} is a library that provides a JSON-like CRDT for JavaScript. It was designed specifically for implementing local-first software. Automerge documents support all JSON primitive data types, as well as Map, List, Text, and Counter. 
@@ -228,13 +274,74 @@ TODO: AUTOMERGE USAGE EXAMPLE
 
 Automerge documents support both merging full documents and applying individual changes. To define rules for merging documents, it's enough to define rules for merging Maps, Lists, Text and Counters. Full explanation of the merging rules in Automerge can be found in Automerge documentation \cite{automergerules}.
 
-TODO: CONFLICT OBJECT
+Some conflicts can't be automaticaly resolved, for example if two replicas concurrently set the same key. In events like this Automerge produces a Conflict object, which contains updates from both replicas. They can be used to allow the user to pick the value manually, but this is not mandatory. Conflict objects can be completely ignored, in which case a single value is picked automaticaly from the list of available options presented by the Conflict object. The library guarantees that if two replicas encounter the same Conflict, it will be resolved in a consistent way, ensuring that the two replicas still converge.
 
-\subsubsection{Crecto}
-\subsection{Leader-Based Log Replication}
-TODO
-\subsection{Time Warp}
-TODO
+The core of Automerge is written in Rust. Consider the following example using Automerge's Rust API demonstrating Conflict objects.
+
+TODO: FIX LISTING
+\begin{lstlisting}[language=C++]
+use automerge::ReadDoc;
+use automerge::transaction::Transactable;
+
+fn main() {
+    let mut first_doc = automerge::Automerge::new();
+    let mut second_doc = first_doc.fork();
+    first_doc.transact::<_, _, automerge::AutomergeError>(|doc| {
+        Ok(doc.put(automerge::ROOT, "key", "first value").unwrap())
+    }).unwrap();
+    second_doc.transact::<_, _, automerge::AutomergeError>(|doc| {
+        Ok(doc.put(automerge::ROOT, "key", "second value").unwrap())
+    }).unwrap();
+    first_doc.merge(&mut second_doc).unwrap();
+    second_doc.merge(&mut first_doc).unwrap();
+    let conflict1: Vec<_> = first_doc.get_all(automerge::ROOT, "key").unwrap();
+    let value1 = first_doc.get(automerge::ROOT, "key").unwrap().unwrap().0;
+    let conflict2: Vec<_> = second_doc.get_all(automerge::ROOT, "key").unwrap();
+    let value2 = second_doc.get(automerge::ROOT, "key").unwrap().unwrap().0;
+
+    println!("Conflict in the first document:\n{:?}", conflict1);
+    println!("Conflict in the second document:\n{:?}", conflict2);
+    println!("First conflict resolves to  {:?}", value1);
+    println!("Second conflict resolves to {:?}", value2);
+
+    // Possible output
+    // Conflict in the first document:
+    // [(Scalar(Str("first value")), Id(1, ActorID("1baddedabae54a6ca7a8aaf03dc2a8a4"), 0)), (Scalar(Str("second value")), Id(1, ActorID("43ca89b2a9854a358c5ea75c26ae735c"), 1))]
+    // Conflict in the second document:
+    // [(Scalar(Str("first value")), Id(1, ActorID("1baddedabae54a6ca7a8aaf03dc2a8a4"), 1)), (Scalar(Str("second value")), Id(1, ActorID("43ca89b2a9854a358c5ea75c26ae735c"), 0))]
+    // First conflict resolves to Scalar(Str("second value"))
+    // Second conflict resolves to Scalar(Str("second value"))
+
+}
+
+\end{lstlisting}
+
+\subsubsection{CRDT for Relational Data}
+
+Some work on designing CRDT for relational data have been done before \cite{relcrdt}. In the paper the authors present a two layered architecture. The first layer is the Application Relation layer, or AR layer. The application can interact with the application layer as if it was a normal database. The second layer, called Conflict-free Replicated Relation layer or CRR layer, handles the logic of applying and propagating updates. The CRR layer contains an AR layer schema, augmented with additional data to implement CRDT logic.
+
+Read-only queries can be executed directly on the application layer. Update requests are applied atomicaly to both AR and CRR schemas. Later they are propagated to other replicas.
+
+The CRR layer is responsible for handling conflicts between local updates and concurrent updates propagated by other replicas. To achieve that the CRR layer stores rows in a special Set CRDT called CLSet, and all row attributes are stored in a Last-Writer-Wins register CRDT. Some numeric attributes are represented by Counter CRDT.
+
+CLSet maintains a counter for each object in the set. This number is called the \textit{causal length} of an object. Successful inserts and removals increment causal length, while unsuccessful operations have no effect. For example, removing an object that doesn't belong to the set has no effect, while removing an object that does belong to the set increments the object's causal length. Following this specification, we can conclude that an object belongs to the set if and only if its causal length is odd. When handling conflicting updates, an update with the greatest causal length wins.
+
+Another problem that the CRR layer needs to solve is maintaining integrity constraints. If some constraints are violated when applying a local update the update can be simply rolled back. The main challenge comes from integrity constaint violations happening when merging updates from other replicas. In this case the CRR layer generates a new update that undoes the conflicting update and propagates it to other replicas.
+
+The paper discusses three kinds of integrity constraints violations. 
+
+The first one is uniqueness constraint violation. When two updates conflict because of a uniqueness constraint violation, update with a higher timestamp is reverted. 
+
+The second one is referential integrity constraint violation. It can happen when one replica updates or inserts a row with a foreign key $f$, while another replica deletes the row containing $f$ from the referenced table. In that case the update/insert operation is reverted, because the delete operation might have been the result of undoing an insert after uniqueness constraint violation. In this case undoing the delete operation will lead to encountering a uniqueness constraint violation again.
+
+The third one is numeric constraint violation like lower and upper bounds. Since some numeric attributes behave like counters with additive updates, it's possible to get overflow or underflow after merging concurrent updates. In this case the more recent updates are reverted.
+
+The approach with issuing undo updates is not fit for all cases. For example some operations might have further side-effects, like sending an email or charging a bank account.  An undo operation can't revert the impact made on the external world. Some papers TODO: CITE suggest that this problem could be solved by introducing quotas for certain operation. For example, if the account balance is 1000, and a client has 10 devices, each device can be issued a quota to deduct 100 from the account. If a device wants to deduct more, it must contact other devices to redistribute the quotas. 
+
+% \subsection{Leader-Based Log Replication}
+% TODO
+% \subsection{Time Warp}
+% TODO
 
 \section{Approaches}
 TODO
@@ -245,7 +352,7 @@ TODO
 \subsection{Transaction replay approach}
 TODO: POLISH CODE LISTINGS
 
-The Colloboque server stores transaction history and the state of the project after each transaction. When a client loses connection to the server, it keeps commiting transactions locally. When connection is re-established, the set of changes applied by the client is sent to the server. The server then takes the state of the project that the out-of-sync client based its changes on and uses it to start two transactions. The first transaction contains all the changes that the client applied locally, while the second transaction contains all the changes processed by the server while the client was disconnected. 
+The Colloboque server stores history committed Postgres database transactions and the state of the project after each transaction. When a client loses connection to the server, he keeps commiting transactions locally. When connection is re-established, the set of changes applied by the client is sent to the server. The server then takes the state of the project that the out-of-sync client based its changes on and uses it to start two transactions. The first transaction contains all the changes that the client applied locally, while the second transaction contains all the changes processed by the server while the client was disconnected. 
 
 \subsubsection{Postgres transaction isolation levels} 
 In the described approach transactions have to make use of isolation level REPEATABLE READ, which is stronger than the default transaction isolation level.
@@ -271,7 +378,7 @@ UPDATE data SET col = 1;
 -- ERROR:  could not serialize access due to concurrent delete
 \end{lstlisting}
 
-With this approach the Postgres database can reliably identify whether the changes that the client made offline produce confilcts. If there are conflicts, the server discards the changes. The client will then have to sync with the server. An out-of-sync version of the document can be saved as a copy so that the client can compare the two versions manually.
+With this approach the Postgres database can reliably identify whether the changes that the client made offline produce confilcts. If there are conflicts, the server discards the changes. The client will then have to sync with the server. An out-of-sync version of the document can be saved as a copy so that the user can compare the two versions manually.
 
 \section{Implementation}
 
