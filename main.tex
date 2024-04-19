@@ -357,11 +357,42 @@ Taking into account the amount of work required to employ this approach and the 
 
 
 \subsection{Time Warp approach}
-TODO
+
+In distributed systems, "time warp" refers to a technique used to handle inconsistencies in the ordering of events across multiple nodes. In such systems, events may occur concurrently at different nodes. Due to network partitions and communication delays, the order in which events are observed can be different at different nodes.
+
+Time warp allows a node to rewind its state to apply an out-of-order event. After that the node can also reapply the events that were undone during the rewind stage. TODO: PICTURE
+
+This technique can be used to allow local-first collaboration with the help of a centralized server. Assume that the clients are able to perform time warp. The centralized server receives update messages from clients and writes them to an append-only log. Let clients adhere to the following algorithm when producing updates:
+
+\begin{enumerate}
+    \item Add an update to the local log
+    \item Notify the server about the update
+    \item Wait for the server to process the update
+    \item Recieve response from the server that the update was successfully committed
+    \item Mark the update as committed
+\end{enumerate}
+
+Alternatively if the client went out of sync:
+
+\begin{enumerate}
+    \item Add an update to the local log
+    \item Notify the server about the update
+    \item Wait for the server to process the update
+    \item Recieve response from the server that the update is out of sync. The server also sends the updates that must be applied by this client to sync with the server.
+    \item Client uses time warp to undo local updates and apply sync updates.
+    \item If local updates produce no conflicts, they are applied again, otherwise the user can be prompted to resolve the conflicts. The original updates are discarded, and if the user resolves the conflict, new updates are generated.
+\end{enumerate}
+
+Notice that even if the update that the server received is out of sync, it can still be committed if it produces no conflicts. When the server send the client a list of sync updates, it can also inform the client that the out of sync update was committed successfuly after the sync updates. Then the client can also apply this local update after applying all the sync updates - there is no need to discard it.
+
+To employ this approach, it is crucial that the client is able to revert recent updates. Unfortunately, this functionality doesn't come built-in with relational databases. To allow time warp on a database, one would have to be able to generate undo operations for all possible transactions. TODO: THIS IS PROBABLY NOT TRIVIAL, EXPLAIN WHY. COULDN'T FIND ANY ARTICLES.
+
+TODO: DATA BRANCHING
+
 \subsection{Transaction replay approach}
 TODO: POLISH CODE LISTINGS
 
-The Colloboque server stores history committed Postgres database transactions and the state of the project after each transaction. When a client loses connection to the server, he keeps commiting transactions locally. When connection is re-established, the set of changes applied by the client is sent to the server. The server then takes the state of the project that the out-of-sync client based its changes on and uses it to start two transactions. The first transaction contains all the changes that the client applied locally, while the second transaction contains all the changes processed by the server while the client was disconnected. 
+The Colloboque server stores a history of committed Postgres database transactions and the state of the project after each transaction. When a client loses connection to the server, he keeps commiting transactions locally. When connection is re-established, the set of changes applied by the client is sent to the server. The server then takes the state of the project that the out-of-sync client based its changes on and uses it to start two transactions. The first transaction contains all the changes that the client applied locally, while the second transaction contains all the changes processed by the server while the client was disconnected. 
 
 \subsubsection{Postgres transaction isolation levels} 
 In the described approach transactions have to make use of isolation level REPEATABLE READ, which is stronger than the default transaction isolation level.
@@ -389,7 +420,11 @@ UPDATE data SET col = 1;
 
 With this approach the Postgres database can reliably identify whether the changes that the client made offline produce confilcts. If there are conflicts, the server discards the changes. The client will then have to sync with the server. An out-of-sync version of the document can be saved as a copy so that the user can compare the two versions manually.
 
+TODO: DATA BRANCHING
+
 \section{Implementation}
+
+
 
 \newpage
 \printbibliography
