@@ -424,7 +424,32 @@ TODO: DATA BRANCHING
 
 \section{Implementation}
 
+\subsection{GanttProject}
 
+GanttProject is an open-source desktop application for creating Gantt charts. A Gantt chart is a type of bar chart that illustrates a project schedule. It's a visual representation of the tasks and activities that need to be completed, along with their corresponding start and end dates. Gantt charts often include dependencies between tasks, showing which tasks must be completed before others can start. These dependencies are typically represented by arrows or lines connecting the bars. Some Gantt charts also include information about resource allocation, showing which resources (such as personnel or equipment) are assigned to each task. TODO: GANTT CHART PICTURE
+
+GanttProject is written in Java and Kotlin and uses Postgres for the database. It supports saving projects in the cloud, but they can't be edited simultaneously by multiple people. TODO: GANTTPROJECT PICTURE. 
+
+\subsubsection{Colloboque}
+To enable real-time collaboration in GanttProject, a module called Colloboque is being developed. It is written in Kotlin. Before I started working on Colloboque, it worked as follows.
+
+Clients connect to a centralized Colloboque server and the server responds with an XML file describing the current version of the project. It was supposed to be the last version of the project, but the stub implementation responded with the same default project every time. The client recieved and loaded the project XML sent by the server. After that every change made by the user is wrapped into an update message and sent to the server. The client waits for the server to respond with a commit message. Until a response from the server is recieved, new changes are not allowed. TODO: WHAT HAPPENS IF COMMIT FAILED?
+
+The server recieves messages from clients. Each message contains information about a transaction that the client wants to perform. The server assigns a transaction id to each transaction, and the client's message includes the transaction id that the client last observed. If the server's last transaction id and the base transaction id in the update message do not match, the server informs the client about the error.
+
+If the transaction ids match, the server executes the transaction, generates a commit message and propagates it to all connected clients.
+
+This implementation had a few problems:
+
+\begin{enumerate}
+    \item Imagine a simple situation. A new project is created, let's denote the initial version as $p$. Then one client connects and makes a change, producing a second version - let's denote the second version $p'$, After that a second client connects to the same project. While it is expected that the server would share the latest version of the project $p'$ with the new client, this wasn't the case. In reality, the server would always respond to all newly connected clients with the same default project template $p$.
+    \item The transactions performed by the server were not logged. This means that if a client was disconnected during some update, then this update is completely lost for this client. The server doesn't have the ability to generate an XML file describing the project from the database state, so recovery was not possible in this situation.
+    \item When a client performs and update, he has to wait for confirmation from the server. During that time he can't introduce more updates. This makes collaboration in GanttProject not local-first. While it was never intended to be local-first in the first place (TODO: OR WAS IT?), it is a nice feature that can be introduced.
+\end{enumerate}
+
+\subsection{Data model}
+
+\subsection{Transaction replay}
 
 \newpage
 \printbibliography
