@@ -15,14 +15,16 @@
 \usepackage[english]{babel} %% typographie française
 \usepackage[style=numeric, language=english]{biblatex}
 \usepackage{parskip} %% blank lines between paragraphs, no indent
-\usepackage[margin=1cm]{caption}%% give long captions a margin
+\usepackage[margin=1cm]{caption,subcaption}%% give long captions a margin
 \usepackage{booktabs} %% typesetting nice tables
-% \usepackage[cache=false]{minted}%% typesetting code nicely
 \usepackage[pdftex]{graphicx} %% include graphics, preferrably pdf
 \usepackage[pdftex]{hyperref} %% many PDF options can be set here
 \usepackage{amsmath}
 \usepackage{amsthm}
 \usepackage{csquotes}
+\usepackage{minted}
+\usepackage{tikz}
+\usepackage{cleveref}
 \pdfadjustspacing=1 %% force LaTeX-like character spacing
 
 \newcommand{\mylastname}{Sirotkina}
@@ -30,7 +32,7 @@
 \newcommand{\mynumber}{30006541}
 \newcommand{\myname}{\myfirstname{} \mylastname{}}
 \newcommand{\mytitle}{Local-first Collaboration on Relational Data}
-\newcommand{\mysupervisor}{??? Anton Podkopaev}
+\newcommand{\mysupervisor}{Anton Podkopaev}
 
 \theoremstyle{definition}
 \newtheorem{definition}{Definition}[section]
@@ -131,9 +133,10 @@ bisher veröffentlicht.
 
 \newpage
 
-\section*{Abstract}
-TODO
+\section{Abstract}
+Nowadays many apps need an internet connection to work properly, especially those that sync data between devices and let people collaborate in real-time. Without internet these apps often become unusable. Local-first software aims to change that by letting users edit shared documents offline and syncing changes when they are back online.
 
+This paper explores the ways of enabling local-first real-time collaboration over abstract relational data in the context of GanttProject, an open-source tool for creating Gantt charts.
 \newpage
 \tableofcontents
 
@@ -155,7 +158,7 @@ GanttProject \cite{ganttsite,ganttrepo} is an open-source tool for building Gant
 The goal of this project is to enable local-first real-time collaboration in GanttProject by further developing Colloboque.
 
 \section{Background}
-TODO
+
 \subsection{Operational Transformation}
 
 Operational Transformation \cite{ot} or OT is a technology for managing concurrent updates, particularly in collaboration software. OT algorithms assume that there are multiple clients. All clients have a replica of the same document and they can modify the document with a predetermined set of operations independently from each other.
@@ -163,7 +166,132 @@ Operational Transformation \cite{ot} or OT is a technology for managing concurre
 When a client recieves an update from another client, he doesn't apply the recieved operation immediately. He compares the incoming change against other observed concurrent changes, transforms the operation and then applies it. The transformation algorithm must ensure that the states of all clients converge.
 
 \subsubsection{OT for plain text}
-TODO: PICTURE
+
+\begin{figure}
+    \def\cellsize{0.5}
+    \def\textsize{\normalsize}
+    \def\numbersize{\small}
+    \centering
+    \begin{subfigure}{\linewidth}
+        \centering
+        \begin{tikzpicture}
+            \def\sentence{H,e,l,l,o, ,W,o,r,l,d}
+
+            % Draw cells and enumerate each cell with a letter and its number in the sequence
+            \foreach \char [count=\n] in \sentence {
+                \pgfmathsetmacro{\mysubtractresult}{int(\n-1)}
+                \draw (\n*\cellsize,0) rectangle ++(\cellsize,\cellsize);
+                \node at (\n*\cellsize+0.5*\cellsize,0.45*\cellsize) {\textsize\strut\char};
+                \node at (\n*\cellsize+0.5*\cellsize,-0.4*\cellsize) {\numbersize \mysubtractresult};
+            }
+        \end{tikzpicture}
+        \caption{Initial sentence}
+        \label{fig:ot}
+    \end{subfigure}
+
+    \vspace{5mm}
+
+    \begin{subfigure}{\linewidth}
+        \centering
+        \begin{tikzpicture}
+            \def\sentence{H,e,l,l,o,{,}, ,W,o,r,l,d}
+    
+            % Draw cells and enumerate each cell with a letter and its number in the sequence
+            \foreach \char [count=\n] in \sentence {
+                \pgfmathsetmacro{\mysubtractresult}{int(\n-1)}
+                % Check if the index is 7 (corresponding to 'W') and mark the cell and letter in red
+                \ifnum\mysubtractresult=5
+                    \draw[red] (\n*\cellsize,0) rectangle ++(\cellsize,\cellsize);
+                    \node[red] at (\n*\cellsize+0.5*\cellsize,0.45*\cellsize) {\textsize\strut\char};
+                \else
+                    \draw (\n*\cellsize,0) rectangle ++(\cellsize,\cellsize);
+                    \node at (\n*\cellsize+0.5*\cellsize,0.45*\cellsize) {\textsize\strut\char};
+                \fi
+                \node at (\n*\cellsize+0.5*\cellsize,-0.4*\cellsize) {\numbersize \mysubtractresult};
+            }
+        \end{tikzpicture}
+        \caption{Alice's update}
+        \label{fig:ot}
+    \end{subfigure}
+
+    \vspace{5mm}
+
+    \begin{subfigure}{\linewidth}
+        \centering
+        \begin{tikzpicture}
+            \def\sentence{H,e,l,l,o, ,W,o,r,l,d,!}
+    
+            % Draw cells and enumerate each cell with a letter and its number in the sequence
+            \foreach \char [count=\n] in \sentence {
+                \pgfmathsetmacro{\mysubtractresult}{int(\n-1)}
+                % Check if the index is 7 (corresponding to 'W') and mark the cell and letter in red
+                \ifnum\mysubtractresult=11
+                    \draw[red] (\n*\cellsize,0) rectangle ++(\cellsize,\cellsize);
+                    \node[red] at (\n*\cellsize+0.5*\cellsize,0.45*\cellsize) {\textsize\strut\char};
+                \else
+                    \draw (\n*\cellsize,0) rectangle ++(\cellsize,\cellsize);
+                    \node at (\n*\cellsize+0.5*\cellsize,0.45*\cellsize) {\textsize\strut\char};
+                \fi
+                \node at (\n*\cellsize+0.5*\cellsize,-0.4*\cellsize) {\numbersize \mysubtractresult};
+            }
+        \end{tikzpicture}
+        \caption{Bob's update}
+        \label{fig:ot}
+    \end{subfigure}
+
+    \vspace{5mm}
+
+    \begin{subfigure}{\linewidth}
+        \centering
+        \begin{tikzpicture}
+            \def\sentence{H,e,l,l,o,{,}, ,W,o,r,l,!,d}
+    
+            % Draw cells and enumerate each cell with a letter and its number in the sequence
+            \foreach \char [count=\n] in \sentence {
+                \pgfmathsetmacro{\mysubtractresult}{int(\n-1)}
+                \pgfmathsetmacro{\shouldbered}{\mysubtractresult==5 || \mysubtractresult==11 ? int(1):int(0)}
+                % Check if the index is 7 (corresponding to 'W') and mark the cell and letter in red
+                \ifnum\shouldbered=1
+                    \draw[red] (\n*\cellsize,0) rectangle ++(\cellsize,\cellsize);
+                    \node[red] at (\n*\cellsize+0.5*\cellsize,0.45*\cellsize) {\textsize\strut\char};
+                \else
+                    \draw (\n*\cellsize,0) rectangle ++(\cellsize,\cellsize);
+                    \node at (\n*\cellsize+0.5*\cellsize,0.45*\cellsize) {\textsize\strut\char};
+                \fi
+                \node at (\n*\cellsize+0.5*\cellsize,-0.4*\cellsize) {\numbersize \mysubtractresult};
+            }
+        \end{tikzpicture}
+        \caption{Alice applies Bob's update without operational transform}
+        \label{fig:ot}
+    \end{subfigure}
+
+    \vspace{5mm}
+
+    \begin{subfigure}{\linewidth}
+        \centering
+        \begin{tikzpicture}
+            \def\sentence{H,e,l,l,o,{,}, ,W,o,r,l,d,!}
+    
+            % Draw cells and enumerate each cell with a letter and its number in the sequence
+            \foreach \char [count=\n] in \sentence {
+                \pgfmathsetmacro{\mysubtractresult}{int(\n-1)}
+                \pgfmathsetmacro{\shouldbered}{\mysubtractresult==5 || \mysubtractresult==12 ? int(1):int(0)}
+                % Check if the index is 7 (corresponding to 'W') and mark the cell and letter in red
+                \ifnum\shouldbered=1
+                    \draw[red] (\n*\cellsize,0) rectangle ++(\cellsize,\cellsize);
+                    \node[red] at (\n*\cellsize+0.5*\cellsize,0.45*\cellsize) {\textsize\strut\char};
+                \else
+                    \draw (\n*\cellsize,0) rectangle ++(\cellsize,\cellsize);
+                    \node at (\n*\cellsize+0.5*\cellsize,0.45*\cellsize) {\textsize\strut\char};
+                \fi
+                \node at (\n*\cellsize+0.5*\cellsize,-0.4*\cellsize) {\numbersize \mysubtractresult};
+            }
+        \end{tikzpicture}
+        \caption{Alice applies Bob's update with operational transform}
+        \label{fig:ot}
+    \end{subfigure}
+    \caption{Demonstrating Operational Transformation on plain text}
+\end{figure}
 
 In this section I will present an example of how OT can be used for managing concurrent insertions in plain text documents.
 
@@ -178,7 +306,7 @@ Bob performs similar actions to learn that he doesn't need to transform Alice's 
 
 \subsubsection{Google Wave}
 
-Google Wave \cite{wavewiki,waveyt} was a communication platform developed by Google using Operational Transformation approach. It was launched in September 2009. Google Wave combined elements of email, instant messaging, wikis, and social networks into a single platform.
+Google Wave \cite{wavewiki,waveyt,waveot} was a communication platform developed by Google using Operational Transformation approach. It was launched in September 2009. Google Wave combined elements of email, instant messaging, wikis, and social networks into a single platform.
 
 Google Wave had features such as real-time collaboration, allowing users to work together on documents known as "waves" by typing messages, inserting images, and adding other content. It supported the embedding of media objects like videos, maps, and polls directly into waves.
 
@@ -191,7 +319,9 @@ Local-first software was first formalized in 2019. The original paper \cite{loca
     Imagine a client who uses a document editor on multiple devices. Synchronization involves tracking changes made by the client on one device and ensuring these changes are reflected across all other devices used by the client. In the end data on all devices must reach the same state. This is a very convenient feature that lets clients acces their work from any device.
 
     \item \textbf{The network is optional} \\
-    Nowadays it is normal for many apps to lose most of their functionality if internet connection is unstable. TODO: EXAMPLES. For local-first software it is important that it should retain its core functionality even when the device is offline. The client is still able to view and edit documents as he pleases, and the changes made while being offline are integrated with other replicas when the device connects to the network again.
+    Nowadays it is normal for many apps to lose most of their functionality if internet connection is unstable. For example, take an online LaTeX editor called Overleaf. In Overleaf if the connection is lost, the page waits for a few seconds before it tries to connect again. In those few seconds the user is still allowed to modify the text fields, but when connection is re-established, the user is met with an immediate error, notifying them that the project went out of sync. Overleaf makes no effort to integrate the changes made by the user while they were offline. This leads to a very frustrating experience where local changes are either discarded or the user has to manually copy them from a special pop-up.
+    
+    For local-first software it is important that it should retain its core functionality even when the device is offline. The client is still able to view and edit documents as he pleases, and the changes made while being offline are integrated with other replicas when the device connects to the network again.
 
     \item \textbf{Seamless collaboration} \\
     Real-time collaboration is a very attractive feature that lets multiplea people work on a single document simultaneously. Some notable examples of web-apps that allow for real-time collaboration are Google Docs, Google Sheets, Figma, etc. Usually such apps don't allow to edit documents offline with some Google products like Google Docs being an exception. For local-first software the aim is to provide collaboration functionality on par with cloud-based apps like Figma while retaining optionality of the network.
@@ -205,15 +335,11 @@ CRDT stands for Conflict-Free Replicated Data Type \cite{crdt}. It's a type of d
 
 CRDT object has an identifier, physical content and an initial state. Any two objects with the same identifiers are called replicas of each other. CRDT specification defines a set of update operations, as well as read-only queries.
 
-A CRDT can implement any logical type like Counter, Set, List, etc. The state of a CRDT's logical type is represented by its abstract state. For example, a Counter CRDT can be implemented as a tuple of values, where each replica can only change its designated value. The abstract state of such CRDT is the sum of all values in a tuple. 
-
-TODO: CLARIFY COUNTER CRDT?
+A CRDT can implement any logical type like Counter, Set, List, etc. The state of a CRDT's logical type is represented by its abstract state. For example, a Counter CRDT can be implemented as a tuple of values, where each replica can only change its designated value. The abstract state of such CRDT is the sum of all values in a tuple. You can see an example implemetation of such counter on \Cref{fig:state-counter}
 
 CRDT guarantees that all well-formed update operations are commutative and idempotent with respect to the abstract state of an object. Because of these properties, replicas can make updates independently, without communicating with other replicas. As long as all updates are eventually communicated, all replicas are guaranteed to end up with the same abstract state.
 
 CRDT types can be further categorized into two groups:  state-based CRDTs and operation-based CRDTs. It is worth noting that state-based CRDTs can always be emulated by operation-based CRDTs and operation-based CRDTs can always be emulated by state-based CRDTs. But for some structures it's simpler to think in terms of state-based CRDT, while some feel more natural as an operation-based CRDT.
-
-% For example, consider two implementations for a CRDT counter
 
 \subsubsection{State-based CRDT}
 For state-based CRDT one has to specify a merge function, which will merge together states of two different replicas. Requirements for the merge function can be formulated in terms of causal history.
@@ -227,94 +353,54 @@ For state-based CRDT one has to specify a merge function, which will merge toget
 \end{itemize}
 \end{definition}
 
-Here is an example implementation of a state-based Counter CRDT
+\begin{figure}
+    \inputminted[frame=single,linenos]{kotlin}{lst/state-counter.kt}
+    \caption{Example implementation of a state-based Counter CRDT in Kotlin}
+    \label{fig:state-counter}
+\end{figure}
 
-\begin{lstlisting}[language=Java]
-Counter {
-    // initial state
-    val counter = (0, 0, 0)
-
-    // identifier from {0, 1, 2}
-    val id
-
-    // update operation
-    fun increment() {
-        counter[id] += 1
-    }
-
-    // query
-    fun value() = sum(counter)
-
-    // merge function
-    fun merge(c1, c2) {
-        merged = (0, 0, 0)
-        for (i in 0..2) {
-            merged[i] = max(c1[i], c2[i])
-        }
-        return merged
-    }
-}
-\end{lstlisting}
+The example implementation of a Counter CRDT on \Cref{fig:state-counter} is state-based.
 
 \subsubsection{Operation-based CRDT}
-TODO
+
+Operation-based CRDTs are not required to have a merge function, but their updates must consist of two phases. The first phase called \verb|atSource| is executed completely at a local replica and produces no side-effects. The second phase called \verb|downstream| is executed locally immedately after the \verb|atSource| phase. After that the \verb|downstream| update is propagated to other replicas and is executed asynchronously by them, changing the downstream state.
+
+This specification can be interpreted in the following way: the \verb|atSource| phase generates an update that follows the internal protocol of the respective CRDT, while the \verb|downstream| phase tries to apply the update to the object.
+
+\begin{figure}
+    \inputminted[frame=single,linenos]{kotlin}{lst/operation-counter.kt}
+    \caption{Example implementation of a state-based Counter CRDT in Kotlin}
+    \label{fig:operation-counter}
+\end{figure}
+
+\Cref{fig:operation-counter} demonstrates an example implementation of an operation-based Counter CRDT.
+
+Causal history can also be defined for operation-based CRDTs.
 
 \begin{definition}[Causal History — operation-based]
     For any replica $x_i$ of $x$:
 \begin{itemize}
     \item Initially, $C(x_i) = \emptyset$.
-    \item After executing update operation $f$, $C(f(x_i)) = C(x_i) \cup \{f\}$.
+    \item After executing the downstream phase of operation $f$ at replica $x_i$, $C(f(x_i)) = C(x_i) \cup \{f\}$.
 \end{itemize}
 \end{definition}
 
+TODO: ELABORATE ON THE USAGE OF DEFINITIONS AND DEFINE CONVERGENCE OR DROP THEM COMPLETELY 
+
 \subsubsection{Automerge}
 Automerge \cite{automerge} is a library that provides a JSON-like CRDT for JavaScript. It was designed specifically for implementing local-first software. Automerge documents support all JSON primitive data types, as well as Map, List, Text, and Counter. 
-
-TODO: AUTOMERGE USAGE EXAMPLE
 
 Automerge documents support both merging full documents and applying individual changes. To define rules for merging documents, it's enough to define rules for merging Maps, Lists, Text and Counters. Full explanation of the merging rules in Automerge can be found in Automerge documentation \cite{automergerules}.
 
 Some conflicts can't be automaticaly resolved, for example if two replicas concurrently set the same key. In events like this Automerge produces a Conflict object, which contains updates from both replicas. They can be used to allow the user to pick the value manually, but this is not mandatory. Conflict objects can be completely ignored, in which case a single value is picked automaticaly from the list of available options presented by the Conflict object. The library guarantees that if two replicas encounter the same Conflict, it will be resolved in a consistent way, ensuring that the two replicas still converge.
 
-The core of Automerge is written in Rust. Consider the following example using Automerge's Rust API demonstrating Conflict objects.
+The core of Automerge is written in Rust. Consider an example using Automerge's Rust API demonstrating Conflict objects on \Cref{fig:automergecode}
 
-TODO: FIX LISTING
-\begin{lstlisting}[language=C++]
-use automerge::ReadDoc;
-use automerge::transaction::Transactable;
-
-fn main() {
-    let mut first_doc = automerge::Automerge::new();
-    let mut second_doc = first_doc.fork();
-    first_doc.transact::<_, _, automerge::AutomergeError>(|doc| {
-        Ok(doc.put(automerge::ROOT, "key", "first value").unwrap())
-    }).unwrap();
-    second_doc.transact::<_, _, automerge::AutomergeError>(|doc| {
-        Ok(doc.put(automerge::ROOT, "key", "second value").unwrap())
-    }).unwrap();
-    first_doc.merge(&mut second_doc).unwrap();
-    second_doc.merge(&mut first_doc).unwrap();
-    let conflict1: Vec<_> = first_doc.get_all(automerge::ROOT, "key").unwrap();
-    let value1 = first_doc.get(automerge::ROOT, "key").unwrap().unwrap().0;
-    let conflict2: Vec<_> = second_doc.get_all(automerge::ROOT, "key").unwrap();
-    let value2 = second_doc.get(automerge::ROOT, "key").unwrap().unwrap().0;
-
-    println!("Conflict in the first document:\n{:?}", conflict1);
-    println!("Conflict in the second document:\n{:?}", conflict2);
-    println!("First conflict resolves to  {:?}", value1);
-    println!("Second conflict resolves to {:?}", value2);
-
-    // Possible output
-    // Conflict in the first document:
-    // [(Scalar(Str("first value")), Id(1, ActorID("1baddedabae54a6ca7a8aaf03dc2a8a4"), 0)), (Scalar(Str("second value")), Id(1, ActorID("43ca89b2a9854a358c5ea75c26ae735c"), 1))]
-    // Conflict in the second document:
-    // [(Scalar(Str("first value")), Id(1, ActorID("1baddedabae54a6ca7a8aaf03dc2a8a4"), 1)), (Scalar(Str("second value")), Id(1, ActorID("43ca89b2a9854a358c5ea75c26ae735c"), 0))]
-    // First conflict resolves to Scalar(Str("second value"))
-    // Second conflict resolves to Scalar(Str("second value"))
-
-}
-
-\end{lstlisting}
+\begin{figure}
+    \inputminted[frame=single,linenos,breaklines]{rust}{lst/automerge.rs}
+    \caption{Conflict objects in Automerge/Rust}
+    \label{fig:automergecode}
+\end{figure}
 
 \subsubsection{CRDT for Relational Data}
 
@@ -336,12 +422,7 @@ The second one is referential integrity constraint violation. It can happen when
 
 The third one is numeric constraint violation like lower and upper bounds. Since some numeric attributes behave like counters with additive updates, it's possible to get overflow or underflow after merging concurrent updates. In this case the more recent updates are reverted.
 
-The approach with issuing undo updates is not fit for all cases. For example some operations might have further side-effects, like sending an email or charging a bank account.  An undo operation can't revert the impact made on the external world. Some papers TODO: CITE suggest that this problem could be solved by introducing quotas for certain operation. For example, if the account balance is 1000, and a client has 10 devices, each device can be issued a quota to deduct 100 from the account. If a device wants to deduct more, it must contact other devices to redistribute the quotas. 
-
-% \subsection{Leader-Based Log Replication}
-% TODO
-% \subsection{Time Warp}
-% TODO
+The approach with issuing undo updates is not fit for all cases. For example some operations might have further side-effects, like sending an email or charging a bank account.  An undo operation can't revert the impact made on the external world. A paper on CRDT \cite{crdt} suggests that this problem could be solved by introducing quotas for certain operation. For example, in case of a counter supports both increments and decrements, but mustn't go below zero, let's impose the following restriction: a client can't issue more decrements than the number of increments he personally issued. If a device wants to decrement more, it can contact other clients to redistribute the allowed decrements. Still, this restriction is overly strong. The other solution to maintain the global invariant is to synchronize, but that defeats the purpose of CRDT.
 
 \section{Approaches}
 In this section I will describe approaches considered during the course of my work.
@@ -360,7 +441,66 @@ Taking into account the amount of work required to employ this approach and the 
 
 In distributed systems, "time warp" refers to a technique used to handle inconsistencies in the ordering of events across multiple nodes. In such systems, events may occur concurrently at different nodes. Due to network partitions and communication delays, the order in which events are observed can be different at different nodes.
 
-Time warp allows a node to rewind its state to apply an out-of-order event. After that the node can also reapply the events that were undone during the rewind stage. TODO: PICTURE
+Time warp allows a node to rewind its state to apply an out-of-order event. After that the node can also reapply the events that were undone during the rewind stage. See \Cref{fig:timewarpmain} for a demonstration of time warping.
+
+\begin{figure}
+    \centering
+    \begin{subfigure}{1\linewidth}
+        \centering
+        \begin{tikzpicture}[every node/.style={circle, draw, minimum size=10mm}]
+            \node (a) at (0,0) {a};
+            \node (b) at (2,0) {b};
+            \node (d) at (4,0) {d};
+            \node (e) at (6,0) {e};
+        
+            \draw[->, >=stealth, line width=1.5pt] (a) -- (b);
+            \draw[->, >=stealth, line width=1.5pt] (b) -- (d);
+            \draw[->, >=stealth, line width=1.5pt] (d) -- (e);
+        \end{tikzpicture}
+        \caption{Log of events on replica $x$}
+        \label{fig:timewarp} 
+    \end{subfigure}
+
+    \vspace{5mm}
+
+    \begin{subfigure}{1\linewidth}
+        \centering
+        \begin{tikzpicture}[every node/.style={circle, draw, minimum size=10mm}]
+            \node (a) at (0,0) {a};
+            \node (b) at (2,0) {b};
+            \node[red] (c) at (4,0) {c};
+            \node (d) at (6.5,0) {d};
+            \node (e) at (8,0) {e};
+        
+            \draw[->, >=stealth, line width=1.5pt] (a) -- (b);
+            \draw[->, >=stealth, line width=1.5pt, red] (b) -- (c);
+        \end{tikzpicture}
+        \caption{Replica $x$ undoes updates $d$ and $c$ to apply out-of-order update $c$}
+        \label{fig:timewarp}
+    \end{subfigure}
+
+    \vspace{5mm}
+
+    \begin{subfigure}{1\linewidth}
+        \centering
+        \begin{tikzpicture}[every node/.style={circle, draw, minimum size=10mm}]
+            \node (a) at (0,0) {a};
+            \node (b) at (2,0) {b};
+            \node (c) at (4,0) {c};
+            \node (d) at (6,0) {d};
+            \node (e) at (8,0) {e};
+        
+            \draw[->, >=stealth, line width=1.5pt] (a) -- (b);
+            \draw[->, >=stealth, line width=1.5pt] (b) -- (c);
+            \draw[->, >=stealth, line width=1.5pt] (c) -- (d);
+            \draw[->, >=stealth, line width=1.5pt] (d) -- (e);
+        \end{tikzpicture}
+        \caption{Replica $x$ reapplies updates $d$ and $c$ on top of $c$}
+        \label{fig:timewarp}
+    \end{subfigure}
+    \caption{Demonstration of time warp progression}
+    \label{fig:timewarpmain}
+\end{figure}
 
 This technique can be used to allow local-first collaboration with the help of a centralized server. Assume that the clients are able to perform time warp. The centralized server receives update messages from clients and writes them to an append-only log. Let clients adhere to the following algorithm when producing updates:
 
@@ -383,14 +523,11 @@ Alternatively if the client went out of sync:
     \item If local updates produce no conflicts, they are applied again, otherwise the user can be prompted to resolve the conflicts. The original updates are discarded, and if the user resolves the conflict, new updates are generated.
 \end{enumerate}
 
-Notice that even if the update that the server received is out of sync, it can still be committed if it produces no conflicts. When the server send the client a list of sync updates, it can also inform the client that the out of sync update was committed successfuly after the sync updates. Then the client can also apply this local update after applying all the sync updates - there is no need to discard it.
+Notice that even if the update that the server received is out of sync, it can still be committed if it produces no conflicts. When the server sends the client a list of sync updates, it can also inform the client that the out of sync update was committed successfuly after the sync updates. Then the client can also apply this local update after applying all the sync updates - there is no need to discard it. TODO: MAYBE UNCLEAR, ADD PICTURE?
 
-To employ this approach, it is crucial that the client is able to revert recent updates. Unfortunately, this functionality doesn't come built-in with relational databases. To allow time warp on a database, one would have to be able to generate undo operations for all possible transactions. TODO: THIS IS PROBABLY NOT TRIVIAL, EXPLAIN WHY. COULDN'T FIND ANY ARTICLES.
-
-TODO: DATA BRANCHING
+To employ this approach, it is crucial that the client is able to revert recent updates. Unfortunately, this functionality doesn't come built-in with most relational databases, including Postgres. To allow time warp on a database, one would have to be able to generate undo operations for all possible transactions. One notable challenge is recovering rows that where deleted as a side-effect of removing a foreign key they were referencing. Another challenge comes from the fact that transactions usually can't be organized into a strictly ordered sequence. In Postgres, multiple transaction isolation levels are supported, and only the strongest level, called SERIALIZABLE, has this property. See Serializable Isolation Level documentation \cite{tisolevel} for more details.
 
 \subsection{Transaction replay approach}
-TODO: POLISH CODE LISTINGS
 
 The Colloboque server stores a history of committed Postgres database transactions and the state of the project after each transaction. When a client loses connection to the server, he keeps commiting transactions locally. When connection is re-established, the set of changes applied by the client is sent to the server. The server then takes the state of the project that the out-of-sync client based its changes on and uses it to start two transactions. The first transaction contains all the changes that the client applied locally, while the second transaction contains all the changes processed by the server while the client was disconnected. 
 
@@ -399,41 +536,55 @@ In the described approach transactions have to make use of isolation level REPEA
 
 The default mode for transactions in Postgres is READ COMMITTED \cite{tisolevel}. It means that a transaction is allowed to read changes that where committed by other transactions after the current transaction has started. 
 
-\begin{lstlisting}[language=SQL]
+\begin{minted}[frame=single,linenos]{sql}
 BEGIN;
 SELECT * FROM data; -- 0 rows
 -- another transaction commits inserting a row
-SELECT * FROM data; -- 1 rows
+SELECT * FROM data; -- 1 row
 COMMIT;
-\end{lstlisting}
+\end{minted}
 
 When using REPEATABLE READ transaction mode, the changes from newly committed transactions are not visible, but if the current transaction makes a conflicting update, it will lead to a serialization error.
 
-\begin{lstlisting}[language=SQL]
+\begin{minted}[frame=single,linenos]{sql}
 BEGIN TRANSACTION ISOLATION LEVEL REPEATABLE READ;
-SELECT * FROM data; -- 1 rows
+SELECT * FROM data; -- 1 row
 -- another transaction commits deleting a row
-SELECT * FROM data; -- 1 rows
+SELECT * FROM data; -- 1 row
 UPDATE data SET col = 1;
 -- ERROR:  could not serialize access due to concurrent delete
-\end{lstlisting}
+\end{minted}
 
 With this approach the Postgres database can reliably identify whether the changes that the client made offline produce confilcts. If there are conflicts, the server discards the changes. The client will then have to sync with the server. An out-of-sync version of the document can be saved as a copy so that the user can compare the two versions manually.
 
-TODO: DATA BRANCHING
+\subsection{Data Branching}
 
-\section{Implementation}
+Data branching in databases refers to the practice of creating divergent versions of data within a database, often for the purpose of testing, experimentation, or parallel development. This concept is similar to branching in version control systems like Git, but applied to data within a database rather than code in a repository.
 
-\subsection{GanttProject}
+Data branching could solve some problems posed by the Time Warp and Transaction replay approaches. In case of Time Warp, there is no need to undo operations if there exists a branch that contains the required version of the project. In case of Transaction replay, there would be no need to store the state of the project after each transaction. 
 
-GanttProject is an open-source desktop application for creating Gantt charts. A Gantt chart is a type of bar chart that illustrates a project schedule. It's a visual representation of the tasks and activities that need to be completed, along with their corresponding start and end dates. Gantt charts often include dependencies between tasks, showing which tasks must be completed before others can start. These dependencies are typically represented by arrows or lines connecting the bars. Some Gantt charts also include information about resource allocation, showing which resources (such as personnel or equipment) are assigned to each task. TODO: GANTT CHART PICTURE
+One example of data branching for Postgres is Neon \cite{neon}. Unfortunately, the free version of Neon only allows to create 10 branches, which is not enough for the purposes of GanttProject.
 
-GanttProject is written in Java and Kotlin and uses Postgres for the database. It supports saving projects in the cloud, but they can't be edited simultaneously by multiple people. TODO: GANTTPROJECT PICTURE. 
+TODO: WRITE MORE?
 
-\subsubsection{Colloboque}
+\section{GanttProject}
+
+GanttProject is an open-source desktop application for creating Gantt charts. A Gantt chart is a type of bar chart that illustrates a project schedule. It's a visual representation of the tasks and activities that need to be completed, along with their corresponding start and end dates. Gantt charts often include dependencies between tasks, showing which tasks must be completed before others can start. These dependencies are typically represented by arrows or lines connecting the bars. Some Gantt charts also include information about resource allocation, showing which resources (such as personnel or equipment) are assigned to each task.
+
+GanttProject is written in Java and Kotlin and uses Postgres for the database. It supports saving projects in the cloud, but they can't be edited simultaneously by multiple people. GanttProject interface is shown on \Cref{fig:ganttscreen} 
+
+\begin{figure}
+    \includegraphics[width=\linewidth]{img/ganttproject.png}
+    \caption{GanttProject interface}
+    \label{fig:ganttscreen}
+\end{figure}
+
+\subsection{Colloboque}
 To enable real-time collaboration in GanttProject, a module called Colloboque is being developed. It is written in Kotlin. Before I started working on Colloboque, it worked as follows.
 
-Clients connect to a centralized Colloboque server and the server responds with an XML file describing the current version of the project. It was supposed to be the last version of the project, but the stub implementation responded with the same default project every time. The client recieved and loaded the project XML sent by the server. After that every change made by the user is wrapped into an update message and sent to the server. The client waits for the server to respond with a commit message. Until a response from the server is recieved, new changes are not allowed. TODO: WHAT HAPPENS IF COMMIT FAILED?
+Clients connect to a centralized Colloboque server and the server responds with an XML file describing the current version of the project. It was supposed to be the last version of the project, but the stub implementation responded with the same default project every time. The client recieved and loaded the project XML sent by the server. After that every change made by the user is wrapped into an update message and sent to the server. The client waits for the server to respond with a commit message. Until a response from the server is recieved, new changes are not allowed. 
+
+% TODO: WHAT HAPPENS IF COMMIT FAILED?
 
 The server recieves messages from clients. Each message contains information about a transaction that the client wants to perform. The server assigns a transaction id to each transaction, and the client's message includes the transaction id that the client last observed. If the server's last transaction id and the base transaction id in the update message do not match, the server informs the client about the error.
 
@@ -442,14 +593,64 @@ If the transaction ids match, the server executes the transaction, generates a c
 This implementation had a few problems:
 
 \begin{enumerate}
-    \item Imagine a simple situation. A new project is created, let's denote the initial version as $p$. Then one client connects and makes a change, producing a second version - let's denote the second version $p'$, After that a second client connects to the same project. While it is expected that the server would share the latest version of the project $p'$ with the new client, this wasn't the case. In reality, the server would always respond to all newly connected clients with the same default project template $p$.
+    \item Imagine a simple situation. A new project is created, let's denote the initial state of the project as $p$. Then one client connects and makes a change, producing a second version of the project - let's denote the second version $p'$. After that a second client connects to the same project. While it is expected that the server would share the latest version of the project $p'$ with the new client, this wasn't the case. In reality, the server would always respond to all newly connected clients with the same default project template $p$.
     \item The transactions performed by the server were not logged. This means that if a client was disconnected during some update, then this update is completely lost for this client. The server doesn't have the ability to generate an XML file describing the project from the database state, so recovery was not possible in this situation.
-    \item When a client performs and update, he has to wait for confirmation from the server. During that time he can't introduce more updates. This makes collaboration in GanttProject not local-first. While it was never intended to be local-first in the first place (TODO: OR WAS IT?), it is a nice feature that can be introduced.
+    \item When a client performs and update, he has to wait for confirmation from the server. During that time he can't introduce more updates. This makes collaboration in GanttProject not local-first. While it was never intended to be local-first in the first place, it is a nice feature that can be introduced.
 \end{enumerate}
 
 \subsection{Data model}
+Due to the way relational databases work, conficts may arise in places where, intuitively, they shouldn't. For example, if one client tries to change task duration, while another tries to change task description, they will run into a conflict. This is because in the database all information about a task is stored in a single row. When clients try to concurrently change task duration and task description, they are essentially trying to change the same row. This will lead to an error if the two transactions happen to run in parallel on the server.
+
+To avoid that, the data model on the Colloboque server differs from the one on the client. The client's \verb|Task| table can be found on \Cref{fig:client-database-init}. On the server this table is separated into multiple tables, each table containing \verb|uid| of the task and some of the attributes of the original \verb|Task| table, grouped either by logic or attribute type. A view object joins all the tables and provides an interface that allows to query all the different tables as if they where a single \verb|Task| table. Additionally, triggers are specified to handle updates and insertions called on the view, so that they are performed on the underlying tables. The server's \verb|Task| view definition can be found on \Cref{fig:server-database-init}
+
+\begin{figure}
+    \inputminted[frame=single,linenos]{sql}{lst/client-database-init.sql}
+    \caption{Task table definition on a GanttProject client}
+    \label{fig:client-database-init}
+\end{figure}
+
+\begin{figure}
+    \inputminted[frame=single,linenos,fontsize=\small]{sql}{lst/server-database-init.sql}
+    \caption{Task view definition on a GanttProject Colloboque server}
+    \label{fig:server-database-init}
+\end{figure}
+
+
+\section{Implementation}
+
+TODO: Implementation is a huge work in progress and the results are not very tangible as of now.
+
+\subsection{jOOQ}
+
+The first step in the implementation of local-first collaboration in GanttProject was to integrate jOOQ library \cite{jooq} with the existing server schema.
+
+jOOQ can generate Java classes based on the database schema, describing tables, columns, and so on. These generated classes provide type-safe access to the database objects, eliminating the need for manual SQL string concatenation and reducing the risk of SQL injection attacks. jOOQ also abstracts away the differences between SQL dialects. This allows to write database-agnostic code that can be easily ported.
+
+TODO: DESCRIBE THIS PARAGRAPH MORE FORMALLY OR EDIT OUT. There were some problems due to jOOQ being bugged. Enum classes where not visible outside of a schema and enum class names had to be written in a specific way for them to be recognized at the class generation step. For example \verb|TaskIntPropertyName| had to be written as \verb|"taskintpropertyname"| in the actual script (\Cref{fig:server-database-init}, line 12).
+
+\subsection{Restoring the latest version}
+
+The next step was to make the server return the latest version of the project to newly connected clients.
+
+To do that the server first had to persist transaction log. This would allow the server to calculate the relevant version of the project by taking the initial XML project file and repeatedly applying transactions to it.
+
+The source code of the client contains logic for loading project from XML into an in-memory H2 database. This logic was exposed in Colloboque. When a new client connected, the server would load the XML project template into an in-memory database, apply transactions from the transaction log table to it, save the resulting project as an XML and send it to the client. 
+
+This way new clients would recieve a relevant version of the project, not a project template, as it was before. 
 
 \subsection{Transaction replay}
+
+The last step is to implement transaction replay approach and enable local-first collaboration.
+
+I've implemented a function, which takes a database and two sets of update logs. It creates two connections and starts a transaction on each of the connections. Both transactions run with isolation level REPEATABLE READ. After starting the transactions, the function applies one set of updates in one transaction, and the second set of updates in another transaction.  Finally it tries to commit both transactions, and either returns true if both commits where successful, or false if there was an error.
+
+Unfortunately, the execution never manages to reach the commit stage. When the second set of updates is being applied, the code hangs indefinitely. It seems that there is some kind of a deadlock in the database. Changing transaction isolation level to READ COMMITTED doesn't affect this behavior. This problem needs further investigation. See function code on \Cref{fig:merge-fun}
+
+\begin{figure}
+    \inputminted[frame=single,linenos,breaklines]{kotlin}{lst/merge-concurrent-updates.kt}
+    \caption{Function for trying transaction replay}
+    \label{fig:merge-fun}
+\end{figure}
 
 \newpage
 \printbibliography
