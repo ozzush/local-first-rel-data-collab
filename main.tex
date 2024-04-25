@@ -652,6 +652,29 @@ Unfortunately, the execution never manages to reach the commit stage. When the s
     \label{fig:merge-fun}
 \end{figure}
 
+\subsection{Protocol}
+
+Assume we can tell from the transaction ids whether two transactions are concurrent or in a happens-before relationship and if yes then shich happens before.
+
+All updates on the server are processed synchronously. They are either in-order updates which can be directly applied, or out of order updates. Out-or-order updates are checked for compatibility with tryMerge and applied if they are compatible. After each update is committed, connected clients are notified. If an update is incompatible, the author of the update is notified.
+
+The client processes all updates, both local and external, synchronously from a queue. When a local update is performed, it is queued with all the other updates. If a client reaches a local update in the queue and successfuly applies it, information about the update is sent to the server. There is a track list for local updates that were sent to the server but the client has not yet recieved an acknowledgement for them. 
+
+Sometimes a client pulls a server's update from the queue, but can't apply it because his local state is different from the state required by the update. In this case there is a track list for server updates which were recieved but couldn't be applied. We say that the client diverges from the server iff the track list for unapplied server updates is not empty. 
+
+If the client pulls a server update from the queue, a few situations are possible.
+
+First, the base transaction of the server's update matches the last transaction on the client and the client doesn't diverge from the server. Then the client can directly apply the update.
+
+Second, the base transaction of the server's update matches the last transaction on the client and the client currently diverges from the server. If the client diverges then the last committed transaction on the client always corresponds to the last local update that the client performed. If the server successfully commited the client's last update, it means that his updates don't conflict with the previous server updates. So, the client can apply all updates stored in the unapplied server updates track list. Now the client is not in a divergent state.
+
+Third, the transaction is concurrent with the client's last transaction. In this case the client adds this update to a track list of unapplied server updates.
+
+Fourth, the message informs the client that one of his local updates couldn't be committed. In this case the client discards the local copy of the project (maybe saving a backup) and requests the latest version of the project from the server.
+
+Fifth, the base transaction is newer than the client's state in terms of the happens-before relation. This means that the client is missing some updates. Then the client requests the most recent state from the server. He can also communicate his last transaction id so that the server can send missing updates only.
+
+
 \newpage
 \printbibliography
 \clearpage
