@@ -133,7 +133,7 @@ bisher veröffentlicht.
 
 \newpage
 
-\section{Abstract}
+\section*{Abstract}
 Nowadays many apps need an internet connection to work properly, especially those that sync data between devices and let people collaborate in real-time. Without internet these apps often become unusable. Local-first software aims to change that by letting users edit shared documents offline and syncing changes when they are back online.
 
 This paper explores the ways of enabling local-first real-time collaboration over abstract relational data in the context of GanttProject, an open-source tool for creating Gantt charts.
@@ -654,25 +654,13 @@ Unfortunately, the execution never manages to reach the commit stage. When the s
 
 \subsection{Protocol}
 
-Assume we can tell from the transaction ids whether two transactions are concurrent or in a happens-before relationship and if yes then shich happens before.
+\subsubsection{Outline}
 
-All updates on the server are processed synchronously. They are either in-order updates which can be directly applied, or out of order updates. Out-or-order updates are checked for compatibility with tryMerge and applied if they are compatible. After each update is committed, connected clients are notified. If an update is incompatible, the author of the update is notified.
+The client can generate local updates and accept updates from the server. Local and server updates are processed synchronously by the client. Local updates are communicated to the server after the client applies them. The server processes all client updates synchronously and establishes a total order of the events by assigning incrementing ids. The client has to follow the total order of the events established by the server. The client can deviate from the established order because it applies local updates without getting confirmation from the server. Upon discovering errors in the order of applied events, the client enters synchronization phase. In synchronization phase the client stops accepting updates. It takes all local updates that are not confirmed by the server yet, and sends them to the server. The server uses Transaction Replay approach (TODO: CITE THE CORRESPONDING SECTION) to check whether the updates produce conflicts. If they don't produce conflicts, the server applies them. Finally, the server responds to the client with the latest state of the project and an indication whether the client's updates were applied or not.
 
-The client processes all updates, both local and external, synchronously from a queue. When a local update is performed, it is queued with all the other updates. If a client reaches a local update in the queue and successfuly applies it, information about the update is sent to the server. There is a track list for local updates that were sent to the server but the client has not yet recieved an acknowledgement for them. 
+\subsubsection{Server}
 
-Sometimes a client pulls a server's update from the queue, but can't apply it because his local state is different from the state required by the update. In this case there is a track list for server updates which were recieved but couldn't be applied. We say that the client diverges from the server iff the track list for unapplied server updates is not empty. 
 
-If the client pulls a server update from the queue, a few situations are possible.
-
-First, the base transaction of the server's update matches the last transaction on the client and the client doesn't diverge from the server. Then the client can directly apply the update.
-
-Second, the base transaction of the server's update matches the last transaction on the client and the client currently diverges from the server. If the client diverges then the last committed transaction on the client always corresponds to the last local update that the client performed. If the server successfully commited the client's last update, it means that his updates don't conflict with the previous server updates. So, the client can apply all updates stored in the unapplied server updates track list. Now the client is not in a divergent state.
-
-Third, the transaction is concurrent with the client's last transaction. In this case the client adds this update to a track list of unapplied server updates.
-
-Fourth, the message informs the client that one of his local updates couldn't be committed. In this case the client discards the local copy of the project (maybe saving a backup) and requests the latest version of the project from the server.
-
-Fifth, the base transaction is newer than the client's state in terms of the happens-before relation. This means that the client is missing some updates. Then the client requests the most recent state from the server. He can also communicate his last transaction id so that the server can send missing updates only.
 
 
 \newpage
