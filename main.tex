@@ -25,6 +25,8 @@
 \usepackage{minted}
 \usepackage{tikz}
 \usepackage{cleveref}
+\usepackage{algorithm}
+\usepackage{algpseudocode}
 \pdfadjustspacing=1 %% force LaTeX-like character spacing
 
 \newcommand{\mylastname}{Sirotkina}
@@ -642,15 +644,15 @@ This way new clients would recieve a relevant version of the project, not a proj
 
 The last step is to implement transaction replay approach and enable local-first collaboration.
 
-I've implemented a function, which takes a database and two sets of update logs. It creates two connections and starts a transaction on each of the connections. Both transactions run with isolation level REPEATABLE READ. After starting the transactions, the function applies one set of updates in one transaction, and the second set of updates in another transaction.  Finally it tries to commit both transactions, and either returns true if both commits where successful, or false if there was an error.
+% I've implemented a function, which takes a database and two sets of update logs. It creates two connections and starts a transaction on each of the connections. Both transactions run with isolation level REPEATABLE READ. After starting the transactions, the function applies one set of updates in one transaction, and the second set of updates in another transaction.  Finally it tries to commit both transactions, and either returns true if both commits where successful, or false if there was an error.
 
-Unfortunately, the execution never manages to reach the commit stage. When the second set of updates is being applied, the code hangs indefinitely. It seems that there is some kind of a deadlock in the database. Changing transaction isolation level to READ COMMITTED doesn't affect this behavior. This problem needs further investigation. See function code on \Cref{fig:merge-fun}
+% Unfortunately, the execution never manages to reach the commit stage. When the second set of updates is being applied, the code hangs indefinitely. It seems that there is some kind of a deadlock in the database. Changing transaction isolation level to READ COMMITTED doesn't affect this behavior. This problem needs further investigation. See function code on \Cref{fig:merge-fun}
 
-\begin{figure}
-    \inputminted[frame=single,linenos,breaklines]{kotlin}{lst/merge-concurrent-updates.kt}
-    \caption{Function for trying transaction replay}
-    \label{fig:merge-fun}
-\end{figure}
+% \begin{figure}
+%     \inputminted[frame=single,linenos,breaklines]{kotlin}{lst/merge-concurrent-updates.kt}
+%     \caption{Function for trying transaction replay}
+%     \label{fig:merge-fun}
+% \end{figure}
 
 \subsection{Protocol}
 
@@ -660,7 +662,75 @@ The client can generate local updates and accept updates from the server. Local 
 
 \subsubsection{Server}
 
+\makeatletter
+\renewcommand{\ALG@name}{Specification}
+\makeatother
 
+The server's specification can be formalized as follows:
+
+\begin{algorithm}
+    \caption{Server}\label{alg:cap}
+    \begin{minted}{kotlin}
+    State:
+        lastId: Id
+        project: ProjectDatabase
+
+    API:
+        sendUpdate(update: Update, baseId: Id | Uid)
+    
+        synchronize(updates: List<Update>, baseId: Id): 
+            returns (projectXml, lastId: Id, updatesApplied: Boolean)
+
+        fetchUpdates(baseId: Id): 
+            returns (updates: List<Updates>, lastId: Id)
+
+        fetchProject():
+            returns (projectXml: String, lastId: Id)
+    \end{minted}
+\end{algorithm}
+
+When the server recieves a \verb|sendUpdate| call, it compares \verb|baseId| against \verb|lastId|. If the ids match, the server commits the update and notifies all connected clients about the update. If the ids don't match, the server notifies the author of the update about the failure.
+
+When the server recieves a \verb|synchronize| call, it loads the state of the project at \verb|baseId| and checks for conflicts using Transaction Replay. If there are no conflicts, the server applies the updates to the latest state of the project. If there are conflicts, the updates are discarded. Finally, the server sends the state of the project to the client, setting the \verb|updatesApplied| field to indicate whether the client's updates were applied successfully.
+
+TODO: \verb|fetchUpdates|, \verb|init()|
+
+\subsubsection{Client}
+
+\begin{algorithm}
+    \caption{Client}\label{alg:cap}
+    \begin{minted}{kotlin}
+    State:
+        lastServerId: Id
+        lastId: Id | Uid
+        project: ProjectDatabase
+        unconfirmedUpdates: Queue<Update>
+        server: ServerConnection
+
+    Handlers:
+        processLocalUpdate(update: Update):
+            project.apply(update)
+            unconfirmedUpdates.push(update)
+            server.sendUpdate(update, lastId)
+            lastId = update.id
+
+        processServerUpdate(update: Update, baseId)
+            if (baseId == lastId) {
+                project.apply(update)
+                lastId = update.id
+                lastServerId = update.id
+            } else if (update == unconfirmedUpdates.first()) {
+                // confirmation for an unconfirmed update
+                unconfirmedUpdates.pop()
+                lastServerId = update.id
+            } else {
+                server.synchronize(unconfirmedUpdates.toList(), lastServerId)
+            }
+
+        processCommitFailure(failedUpdate: Update)
+            server.synchronize(unconfirmedUpdates.toList(), lastServerId)
+    \end{minted}
+\end{algorithm}
 
 
 \newpage
