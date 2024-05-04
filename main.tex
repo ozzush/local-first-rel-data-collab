@@ -938,17 +938,6 @@ Secondly, persistent loggigng of executed transactions and the project's state w
 
 Thirdly, a function to run transaction replay was implemented.
 
-% I've implemented a function, which takes a database and two sets of update logs. It creates two connections and starts a transaction on each of the connections. Both transactions run with isolation level REPEATABLE READ. After starting the transactions, the function applies one set of updates in one transaction, and the second set of updates in another transaction.  Finally it tries to commit both transactions, and either returns true if both commits where successful, or false if there was an error.
-
-% Unfortunately, the execution never manages to reach the commit stage. When the second set of updates is being applied, the code hangs indefinitely. It seems that there is some kind of a deadlock in the database. Changing transaction isolation level to READ COMMITTED doesn't affect this behavior. This problem needs further investigation. See function code on \Cref{fig:merge-fun}
-
-% \begin{figure}
-%     \inputminted[frame=single,linenos,breaklines]{kotlin}{lst/merge-concurrent-updates.kt}
-%     \caption{Function for trying transaction replay}
-%     \label{fig:merge-fun}
-% \end{figure}
-
-
 \newpage
 \printbibliography
 \clearpage
