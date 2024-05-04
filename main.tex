@@ -24,8 +24,16 @@
 \usepackage{csquotes}
 \usepackage{minted}
 \usepackage{tikz}
-\usepackage{cleveref}
+\usetikzlibrary{fit}
+
 \usepackage{algorithm}
+\usepackage{float}
+\newfloat{algorithm}{t}{lop}
+\floatname{algorithm}{Specification}
+
+\usepackage{cleveref}
+\Crefname{algorithm}{Specification}{Specifications}
+
 \usepackage{algpseudocode}
 \pdfadjustspacing=1 %% force LaTeX-like character spacing
 
@@ -165,7 +173,7 @@ The goal of this project is to enable local-first real-time collaboration in Gan
 
 Operational Transformation \cite{ot} or OT is a technology for managing concurrent updates, particularly in collaboration software. OT algorithms assume that there are multiple clients. All clients have a replica of the same document and they can modify the document with a predetermined set of operations independently from each other.
 
-When a client recieves an update from another client, he doesn't apply the recieved operation immediately. He compares the incoming change against other observed concurrent changes, transforms the operation and then applies it. The transformation algorithm must ensure that the states of all clients converge.
+When a client receives an update from another client, he doesn't apply the received operation immediately. He compares the incoming change against other observed concurrent changes, transforms the operation and then applies it. The transformation algorithm must ensure that the states of all clients converge.
 
 \subsubsection{OT for plain text}
 
@@ -477,7 +485,7 @@ Time warp allows a node to rewind its state to apply an out-of-order event. Afte
             \draw[->, >=stealth, line width=1.5pt] (a) -- (b);
             \draw[->, >=stealth, line width=1.5pt, red] (b) -- (c);
         \end{tikzpicture}
-        \caption{Replica $x$ undoes updates $d$ and $c$ to apply out-of-order update $c$}
+        \caption{Replica $x$ undoes updates $d$ and $e$ to apply out-of-order update $c$}
         \label{fig:timewarp}
     \end{subfigure}
 
@@ -497,7 +505,7 @@ Time warp allows a node to rewind its state to apply an out-of-order event. Afte
             \draw[->, >=stealth, line width=1.5pt] (c) -- (d);
             \draw[->, >=stealth, line width=1.5pt] (d) -- (e);
         \end{tikzpicture}
-        \caption{Replica $x$ reapplies updates $d$ and $c$ on top of $c$}
+        \caption{Replica $x$ reapplies updates $d$ and $e$ on top of $c$}
         \label{fig:timewarp}
     \end{subfigure}
     \caption{Demonstration of time warp progression}
@@ -510,7 +518,7 @@ This technique can be used to allow local-first collaboration with the help of a
     \item Add an update to the local log
     \item Notify the server about the update
     \item Wait for the server to process the update
-    \item Recieve response from the server that the update was successfully committed
+    \item receive response from the server that the update was successfully committed
     \item Mark the update as committed
 \end{enumerate}
 
@@ -520,7 +528,7 @@ Alternatively if the client went out of sync:
     \item Add an update to the local log
     \item Notify the server about the update
     \item Wait for the server to process the update
-    \item Recieve response from the server that the update is out of sync. The server also sends the updates that must be applied by this client to sync with the server.
+    \item receive response from the server that the update is out of sync. The server also sends the updates that must be applied by this client to sync with the server.
     \item Client uses time warp to undo local updates and apply sync updates.
     \item If local updates produce no conflicts, they are applied again, otherwise the user can be prompted to resolve the conflicts. The original updates are discarded, and if the user resolves the conflict, new updates are generated.
 \end{enumerate}
@@ -584,11 +592,11 @@ GanttProject is written in Java and Kotlin and uses Postgres for the database. I
 \subsection{Colloboque}
 To enable real-time collaboration in GanttProject, a module called Colloboque is being developed. It is written in Kotlin. Before I started working on Colloboque, it worked as follows.
 
-Clients connect to a centralized Colloboque server and the server responds with an XML file describing the current version of the project. It was supposed to be the last version of the project, but the stub implementation responded with the same default project every time. The client recieved and loaded the project XML sent by the server. After that every change made by the user is wrapped into an update message and sent to the server. The client waits for the server to respond with a commit message. Until a response from the server is recieved, new changes are not allowed. 
+Clients connect to a centralized Colloboque server and the server responds with an XML file describing the current version of the project. It was supposed to be the last version of the project, but the stub implementation responded with the same default project every time. The client received and loaded the project XML sent by the server. After that every change made by the user is wrapped into an update message and sent to the server. The client waits for the server to respond with a commit message. Until a response from the server is received, new changes are not allowed. 
 
 % TODO: WHAT HAPPENS IF COMMIT FAILED?
 
-The server recieves messages from clients. Each message contains information about a transaction that the client wants to perform. The server assigns a transaction id to each transaction, and the client's message includes the transaction id that the client last observed. If the server's last transaction id and the base transaction id in the update message do not match, the server informs the client about the error.
+The server receives messages from clients. Each message contains information about a transaction that the client wants to perform. The server assigns a transaction id to each transaction, and the client's message includes the transaction id that the client last observed. If the server's last transaction id and the base transaction id in the update message do not match, the server informs the client about the error.
 
 If the transaction ids match, the server executes the transaction, generates a commit message and propagates it to all connected clients.
 
@@ -617,32 +625,318 @@ To avoid that, the data model on the Colloboque server differs from the one on t
     \label{fig:server-database-init}
 \end{figure}
 
+\section{Synchronization Protocol}\label{sec:protocol}
+
+\subsection{Outline}
+
+The client can generate local updates and accept updates from the server. Local and server updates are processed synchronously by the client. Local updates are communicated to the server after the client applies them. The server processes all client updates synchronously and establishes a total order of the events. The client has to follow the total order of the events established by the server. The client can deviate from the established order because it applies local updates without getting confirmation from the server. Upon discovering errors in the order of applied events, the client enters synchronization phase. In synchronization phase the client stops accepting updates. It takes all local updates that are not confirmed by the server yet, and sends them to the server. The server uses Transaction Replay approach (TODO: CITE THE CORRESPONDING SECTION) to check whether applying the updates produces conflicts. If it doesn't produce conflicts, the server applies the updates. Finally, the server responds to the client with a list of updates that the client must apply to get the latest state of the project and an indication whether the updates that the client sent were applied successfully.
+
+\subsection{Database model}
+
+Consider that all database transactions are deterministic and run with isolation level SERIALIZEABLE. Then the database state can be accurately described by a linear history of transactions. In more formal terms, project database is \textit{simulated} by a linear history of transactions. (TODO: DEFINE FORMALLY?) The protocol specification uses an append-only log of updates to represent the history of transactions and describe the state of the database.
+
+\subsection{Server}
+
+Logs are composed of \verb|Update| objects. \verb|Update| object specification can be found in \Cref{alg:update}. \verb|Log| object specification can be found in \Cref{alg:log}. The server's state and API can be found in \Cref{alg:server-state,alg:server-api}
+
+\begin{algorithm}
+    \caption{Update object}\label{alg:update}
+    \begin{minted}{kotlin}
+    id: Id                   // Unique identifier of this update
+    baseId: Id               // Id of the previous update
+    author: String           // Id of the client who initiated the update
+    transaction: Transaction // Transaction to apply to the database
+    status: UpdateStatus     // One of { COMMIT, REJECT, LOCAL }
+                             // COMMIT: committed by the server
+                             // REJECT: rejected by the server
+                             // LOCAL:  not processed by the server yet
+    \end{minted}
+\end{algorithm}
+
+\begin{algorithm}
+    \caption{Log object}\label{alg:log}
+    \begin{minted}{kotlin}
+    State:
+        updates: List<Update>
+    
+    Interface:
+        fun append(update: Update):
+            updates.add(update)
+
+        fun lastUpdateId():
+            return updates.last().id
+
+    \end{minted}
+\end{algorithm}
+
+\begin{algorithm}
+    \caption{Server state}\label{alg:server-state}
+    \begin{minted}{kotlin}
+    log: Log
+    connectedClients: List<ClientConnection>
+    \end{minted}
+\end{algorithm}
+
+\begin{algorithm}
+    \caption{Server API}\label{alg:server-api}
+    \begin{minted}{kotlin}
+    sendUpdate(update: Update)
+
+    synchronize(unconfirmedUpdates: List<Update>, lastConfirmedId: Id): 
+        returns (updates: List<Update>, updatesApplied: Boolean)
+
+    fetchLog:
+        returns (log: Log)
+    \end{minted}
+\end{algorithm}
+
+When the server receives a \verb|sendUpdate| call, it first compares \verb|update.baseId| against \verb|log.lastUpdateId()| (the last update id in the log). If the ids match, the server commits the update and notifies all connected clients about the update. If the ids don't match, the server notifies the author of the update about their update being rejected.
+
+When the server receives a \verb|synchronize| call, it checks whether the updates produce conflicts. The exact logic of conflict checking is omitted in this protocol specification to avoid increasing complexity, but in the implementation the check for conflicts is performed using Transaction Replay. If there are no conflicts, the server changes the first update's \verb|baseId| to match the current log and applies the updates. If there are conflicts, the updates are discarded. Finally, the server computes a list of updates that the client needs to apply locally in order to get the latest state.
+
+\subsection{Client}
+
+To provide seamless integration of local updates and updates from the server, the client stores two logs. The first log is the client's personal log, to which local updates can be written without confirmation from the server. This is also what's displayed to the user. The second log strictly follows the server's log, and its purpose is to make synchronization process more efficient. The client also stores a list of updates that were applied to the personal log, but haven't received confirmation from the server.
+
+\begin{algorithm}
+    \caption{Client state}\label{alg:client-state}
+    \begin{minted}{kotlin}
+    clientId: String                 // Unique id of this client.
+    clientLog: Log                   // Client's personal log.
+    serverLog: Log                   // Replica of the server's log.
+    unconfirmedUpdates: List<Update> // Updates that were applied to 
+                                     // the personal log, but not
+                                     // confirmed by the server.
+    server: ServerConnection
+    \end{minted}
+\end{algorithm}
+
+When a client connects to the server for the first time, it fetches the latest log using the server's \verb|fetchLog| API call. After that the server will send the client notifications about updates in the order that the server processes them. Each notification contains a single \verb|Update| object. The client can also generate local updates. To avoid complexity of distributed applications, local updates and server updates are merged in a single queue, so the client can process all updates synchronously.
+
+The client processes each update based on its \verb|status| field. There are three update handlers in total: \verb|processLocalUpdate|, \verb|processServerUpdateCommitted| and \\ \verb|processServerUpdateRejected|. Definitions of these handlers can be found in \Cref{alg:update-handlers}
+
+\subsubsection*{Local update handler}
+
+The \verb|processLocalUpdate| handler manages updates generated locally by the client. It appends the update to the client's log (\verb|clientLog|) and adds it to the list of unconfirmed updates (\verb|unconfirmedUpdates|). It then notifies the server of the update using the \verb|sendUpdate| API call.
+
+\subsubsection*{Commit update handler}
+
+The \verb|processServerUpdateCommitted| handler is used for updates that were sent as commit notifications by the server. The update is either a confirmation for this client's local update or a new update from another client, processed by the server. We can look at this update from two perspectives: from the perspective of the \verb|clientLog| and from the perspective of the \verb|serverLog|.
+
+From the perspective of the \verb|serverLog|, the update can be either one of three cases:
+
+\begin{enumerate}
+    \item The update is an older update that has already been confirmed. This can happen because the client may get update confirmations before the notification arrives by using \verb|fetchLog| and \verb|synchronize| calls. No actions are required in this case.
+    \item The update's \verb|baseId| is the same as the log's last update id. The update can be appended directly to the log.
+    \item The situation doesn't match any of the other cases. This implies that some notifications from the server have been lost. It is only possible in case of this client's or a server's failure and is omitted here.
+\end{enumerate}
+
+\begin{figure}
+    \centering
+    \begin{tikzpicture}[]
+        \node[draw, minimum size=10mm, circle] (a) at (0,0) {a};
+        \node[draw, minimum size=10mm, circle] (b) at (2,0) {b};
+        \node[draw, minimum size=10mm, circle, color=blue] (g) at (4,0) {g};
+    
+        \draw[->, >=stealth, line width=1.5pt] (a) -- (b);
+        \draw[dotted, ->, >=stealth, line width=1.5pt, color=blue] (b) -- (g);
+
+        \draw[thick] ([yshift=+0.5cm]a.north west) -- node[above=0.4cm] {case 1} ([yshift=+0.5cm]b.north east);
+        \draw[thick] ([yshift=+0.5cm]a.north west) -- ++(0cm,-0.2cm);
+        \draw[thick] ([yshift=+0.5cm]b.north east) -- ++(0cm,-0.2cm);
+
+        \draw[thick] ([yshift=+0.5cm]g.north west) -- node[above=0.4cm] {case 2} ([yshift=+0.5cm]g.north east);
+        \draw[thick] ([yshift=+0.5cm]g.north west) -- ++(0cm,-0.2cm);
+        \draw[thick] ([yshift=+0.5cm]g.north east) -- ++(0cm,-0.2cm);
+
+        \node[draw, minimum size=10mm, circle, color=blue] (f) at (4,-1.5) {f};
+
+        \draw[thick] ([yshift=-0.5cm]f.south west) -- node[below=0.4cm] {case 3} ([yshift=-0.5cm]f.south east);
+        \draw[thick] ([yshift=-0.5cm]f.south west) -- ++(0cm,0.2cm);
+        \draw[thick] ([yshift=-0.5cm]f.south east) -- ++(0cm,0.2cm);
+    \end{tikzpicture}
+    \caption{Visualization of cases in relation to \texttt{serverLog}.}
+    \label{fig:update-server-cases} 
+    \caption*{Black nodes represent the current log. Blue nodes represent updates that don't match any update in the log. An arrow from \texttt{x} to \texttt{y} shows that \texttt{x.baseId == y.id}.}
+\end{figure}
+
+An illustration of these cases is displayed on \Cref{fig:update-server-cases}
+
+
+From the perspective of the \verb|clientLog|, the update can be either one of five cases:
+
+\begin{enumerate}
+    \item The update is an older update that has already been confirmed. This can happen because the client may get update confirmations before the notification arrives by using \verb|fetchLog| and \verb|synchronize| calls. No actions are required in this case.
+    \item The update confirms the oldest unconfirmed update. In this case it should be removed from the \verb|unconfirmedUpdates| list and no further actions are required.
+    \item The update's \verb|baseId| is the same as the log's last update id and the list of unconfirmed updates is empty. The update can be appended directly to the client's log.
+    \item The update's \verb|baseId| is the same as the oldest unconfirmed update's \verb|baseId|, but the updates are different. This implies that the client has diverged from the server and must synchronize. 
+    \item The situation doesn't match any of the other cases. This implies that some notifications from the server have been lost. It is only possible in case of this client's or a server's failure and is omitted here. TODO?
+\end{enumerate}
+
+An illustration of these cases is displayed on \Cref{fig:update-client-cases}
+
+\begin{figure}
+    \centering
+    \begin{subfigure}{1\linewidth}
+        \centering
+        \begin{tikzpicture}[]
+            \node[draw, minimum size=10mm, circle] (a) at (0,0) {a};
+            \node[draw, minimum size=10mm, circle] (b) at (2,0) {b};
+            \node[draw, minimum size=10mm, circle, color=red] (d) at (4,0) {d};
+            \node[draw, minimum size=10mm, circle, color=red] (e) at (6,0) {e};
+            \node[draw, minimum size=10mm, circle, color=blue] (g) at (8,0) {g};
+            \node[draw, minimum size=10mm, circle, color=blue] (h) at (8,-1.5) {h};
+        
+            \draw[->, >=stealth, line width=1.5pt] (a) -- (b);
+            \draw[->, >=stealth, line width=1.5pt, color=red] (b) -- (d);
+            \draw[->, >=stealth, line width=1.5pt, color=red] (d) -- (e);
+
+            \draw[thick] ([yshift=+0.5cm]a.north west) -- node[above=0.4cm] {case 1} ([yshift=+0.5cm]b.north east);
+            \draw[thick] ([yshift=+0.5cm]a.north west) -- ++(0cm,-0.2cm);
+            \draw[thick] ([yshift=+0.5cm]b.north east) -- ++(0cm,-0.2cm);
+
+            \draw[thick] ([yshift=+0.5cm]d.north west) -- node[above=0.4cm] {case 2} ([yshift=+0.5cm]d.north east);
+            \draw[thick] ([yshift=+0.5cm]d.north west) -- ++(0cm,-0.2cm);
+            \draw[thick] ([yshift=+0.5cm]d.north east) -- ++(0cm,-0.2cm);
+
+            \draw[thick] ([yshift=+0.5cm]e.north west) -- node[above=0.4cm] {case 5} ([yshift=+0.5cm]g.north east);
+            \draw[thick] ([yshift=+0.5cm]e.north west) -- ++(0cm,-0.2cm);
+            \draw[thick] ([yshift=+0.5cm]g.north east) -- ++(0cm,-0.2cm);
+
+            \node[draw, minimum size=10mm, circle, color=blue] (f) at (4,-1.5) {f};
+
+            \draw[dotted, ->, >=stealth, line width=1.5pt, color=blue] (b) -- (f);
+
+            \draw[dotted, ->, >=stealth, line width=1.5pt, color=blue] (e) -- (g);
+
+            \draw[thick] ([yshift=-0.5cm]f.south west) -- node[below=0.4cm] {case 4} ([yshift=-0.5cm]f.south east);
+            \draw[thick] ([yshift=-0.5cm]f.south west) -- ++(0cm,0.2cm);
+            \draw[thick] ([yshift=-0.5cm]f.south east) -- ++(0cm,0.2cm);
+        \end{tikzpicture}
+        \caption{Unconfirmed updates are present.}
+        \label{fig:update-client-cases-a} 
+    \end{subfigure}
+
+    \vspace{5mm}
+
+    \begin{subfigure}{1\linewidth}
+        \centering
+        \begin{tikzpicture}[]
+            \node[draw, minimum size=10mm, circle] (a) at (0,0) {a};
+            \node[draw, minimum size=10mm, circle] (b) at (2,0) {b};
+            \node[draw, minimum size=10mm, circle, color=blue] (g) at (4,0) {g};
+        
+            \draw[->, >=stealth, line width=1.5pt] (a) -- (b);
+            \draw[dotted, ->, >=stealth, line width=1.5pt, color=blue] (b) -- (d);
+
+            \draw[thick] ([yshift=+0.5cm]a.north west) -- node[above=0.4cm] {case 1} ([yshift=+0.5cm]b.north east);
+            \draw[thick] ([yshift=+0.5cm]a.north west) -- ++(0cm,-0.2cm);
+            \draw[thick] ([yshift=+0.5cm]b.north east) -- ++(0cm,-0.2cm);
+
+            \draw[thick] ([yshift=+0.5cm]d.north west) -- node[above=0.4cm] {case 3} ([yshift=+0.5cm]d.north east);
+            \draw[thick] ([yshift=+0.5cm]d.north west) -- ++(0cm,-0.2cm);
+            \draw[thick] ([yshift=+0.5cm]d.north east) -- ++(0cm,-0.2cm);
+
+            \node[draw, minimum size=10mm, circle, color=blue] (f) at (4,-1.5) {f};
+
+            \draw[thick] ([yshift=-0.5cm]f.south west) -- node[below=0.4cm] {case 5} ([yshift=-0.5cm]f.south east);
+            \draw[thick] ([yshift=-0.5cm]f.south west) -- ++(0cm,0.2cm);
+            \draw[thick] ([yshift=-0.5cm]f.south east) -- ++(0cm,0.2cm);
+        \end{tikzpicture}
+        \caption{Unconfirmed updates are not present.}
+        \label{fig:update-client-cases-b} 
+    \end{subfigure}
+
+
+    \caption{Visualization of cases in relation to \texttt{clientLog}.}\label{fig:update-client-cases}
+    \caption*{
+    Black and red nodes show the client's log. Red nodes represent unconfirmed updates. Blue nodes represent updates that don't match any update in the log. An arrow from \texttt{x} to \texttt{y} shows that \texttt{x.baseId == y.id}.}
+
+\end{figure}
+
+\subsubsection*{Reject update handler}
+
+The \verb|processServerUpdateRejected| handler is called when the server rejects an update previously sent by the client. It ensures that the client has already received the conflicting update notification and completed synchronization, so no further action is necessary.
+
+
+\begin{algorithm}
+    \caption{Update handlers}\label{alg:update-handlers}
+    \begin{minted}{kotlin}
+    // LOCAL
+    processLocalUpdate(update: Update):
+        // Implementation ensures that 
+        // update.baseId == lastClientUpdateId
+        clientLog.append(update)
+        unconfirmedUpdates.add(update)
+        server.sendUpdate(update)
+
+    // COMMIT
+    processServerUpdateCommitted(update: Update):
+        if (update.baseId == serverLog.lastUpdateId()) {
+            serverLog.append(update)
+            if (update.baseId == clientLog.lastUpdateId()) {
+                clientLog.append(update)
+            } else if (update == unconfirmedUpdates.first()) {
+                unconfirmedUpdates.removeFirst()
+            } else if (update.author == clientId) {
+                // Do nothing.
+                // Confirmation for this update was already received 
+                // through a `fetchLog`' or `synchronize`' call
+            } else {
+                synchronizationPhase()
+            }
+        } else {
+            // Either some updates were lost due to this client's failure,
+            // in which case we should synchronize,
+            // or the update was already applied by this client,
+            // in which case the update should be ignored.
+            //
+            // The latter can happen because the client receives 
+            // updates ahead of commit notifications in response to 
+            // `fetchLog` and `synchronize` calls.
+        }
+    
+    // REJECT
+    processServerUpdateRejected(update: Update):
+        // Do nothing.
+        // The client processes updates in the same order as
+        // the server issues them.
+        // Rejection is only possible if another update
+        // with the same baseId was processed by the server earlier. 
+        // When this rejection  arrives, the client has already received 
+        // the conflicting update notification and finished
+        // synchronization.
+    \end{minted}
+\end{algorithm}
+
+\subsection{Synchronization phase}
+
+The synchronization phase consists of the following steps:
+
+\begin{enumerate}
+    \item The client sends to the server all unconfirmed updates and an id of the last server-confirmed update that the client observed. After that the client waits for the server's response.
+    \item The server receives \verb|unconfirmedUpdates| from the client and checks whether applying them would produce conflicts. Transaction Replay is used to do that, but I will omit implementation details. If there are no conflicts, the updates are applied, otherwise they are discarded.
+    \item The server uses \verb|lastConfirmedId| and the current log data to compute a list of updates that the client needs to apply to get the latest state of the project. The server sends this list to the client together with an indication whether \verb|unconfirmedUpdates| where applied.
+    \item The client applies received updates to \verb|serverLog|, copies \verb|serverLog| into \verb|clientLog| and empties \verb|unconfirmedUpdates|. Alternatively, in case the updates weren't applied, the user can be prompted to resolve conflicts manually.
+\end{enumerate}
 
 \section{Implementation}
 
-TODO: Implementation is a huge work in progress and the results are not very tangible as of now.
+A prototype of the protocol described in \Cref{sec:protocol} was implemented\cite{prototype}. In the implementation WebSockets are used to communicate updates from clients to the server and from the server to clients, and HTTP is used for synchronization and fetching of the log. This architecture mimicks the architecture of GanttProjects's Colloboque to ease integration with the main codebase.
 
-\subsection{jOOQ}
+Additionally, some changes were made to Colloboque to facilitate new protocol implementation.
 
-The first step in the implementation of local-first collaboration in GanttProject was to integrate jOOQ library \cite{jooq} with the existing server schema.
+\subsection*{jOOQ}
 
-jOOQ can generate Java classes based on the database schema, describing tables, columns, and so on. These generated classes provide type-safe access to the database objects, eliminating the need for manual SQL string concatenation and reducing the risk of SQL injection attacks. jOOQ also abstracts away the differences between SQL dialects. This allows to write database-agnostic code that can be easily ported.
+Firstly, the use of jOOQ library \cite{jooq} was integrated into Colloboque. jOOQ can generate Java classes based on the database schema, describing tables, columns, and so on. These generated classes provide type-safe access to the database objects, eliminating the need for manual SQL string concatenation and reducing the risk of SQL injection attacks. jOOQ also abstracts away the differences between SQL dialects. This allows to write database-agnostic code that can be easily ported.
 
-TODO: DESCRIBE THIS PARAGRAPH MORE FORMALLY OR EDIT OUT. There were some problems due to jOOQ being bugged. Enum classes where not visible outside of a schema and enum class names had to be written in a specific way for them to be recognized at the class generation step. For example \verb|TaskIntPropertyName| had to be written as \verb|"taskintpropertyname"| in the actual script (\Cref{fig:server-database-init}, line 12).
+\subsection*{Restoring the latest version}
 
-\subsection{Restoring the latest version}
-
-The next step was to make the server return the latest version of the project to newly connected clients.
-
-To do that the server first had to persist transaction log. This would allow the server to calculate the relevant version of the project by taking the initial XML project file and repeatedly applying transactions to it.
-
-The source code of the client contains logic for loading project from XML into an in-memory H2 database. This logic was exposed in Colloboque. When a new client connected, the server would load the XML project template into an in-memory database, apply transactions from the transaction log table to it, save the resulting project as an XML and send it to the client. 
-
-This way new clients would recieve a relevant version of the project, not a project template, as it was before. 
+Secondly, persistent loggigng of executed transactions and the project's state was implemented. This would allow the server to use Transaction Replay to check for conflicts. When conflicting updates arrive, the server can use \verb|baseId| to load the state of the project at \verb|baseId| from the project state logs, as well as a list of concurrent updates from transaction logs.
 
 \subsection{Transaction replay}
 
-The last step is to implement transaction replay approach and enable local-first collaboration.
+Thirdly, a function to run transaction replay was implemented.
 
 % I've implemented a function, which takes a database and two sets of update logs. It creates two connections and starts a transaction on each of the connections. Both transactions run with isolation level REPEATABLE READ. After starting the transactions, the function applies one set of updates in one transaction, and the second set of updates in another transaction.  Finally it tries to commit both transactions, and either returns true if both commits where successful, or false if there was an error.
 
@@ -653,84 +947,6 @@ The last step is to implement transaction replay approach and enable local-first
 %     \caption{Function for trying transaction replay}
 %     \label{fig:merge-fun}
 % \end{figure}
-
-\subsection{Protocol}
-
-\subsubsection{Outline}
-
-The client can generate local updates and accept updates from the server. Local and server updates are processed synchronously by the client. Local updates are communicated to the server after the client applies them. The server processes all client updates synchronously and establishes a total order of the events by assigning incrementing ids. The client has to follow the total order of the events established by the server. The client can deviate from the established order because it applies local updates without getting confirmation from the server. Upon discovering errors in the order of applied events, the client enters synchronization phase. In synchronization phase the client stops accepting updates. It takes all local updates that are not confirmed by the server yet, and sends them to the server. The server uses Transaction Replay approach (TODO: CITE THE CORRESPONDING SECTION) to check whether the updates produce conflicts. If they don't produce conflicts, the server applies them. Finally, the server responds to the client with the latest state of the project and an indication whether the client's updates were applied or not.
-
-\subsubsection{Server}
-
-\makeatletter
-\renewcommand{\ALG@name}{Specification}
-\makeatother
-
-The server's specification can be formalized as follows:
-
-\begin{algorithm}
-    \caption{Server}\label{alg:cap}
-    \begin{minted}{kotlin}
-    State:
-        lastId: Id
-        project: ProjectDatabase
-
-    API:
-        sendUpdate(update: Update, baseId: Id | Uid)
-    
-        synchronize(updates: List<Update>, baseId: Id): 
-            returns (projectXml, lastId: Id, updatesApplied: Boolean)
-
-        fetchUpdates(baseId: Id): 
-            returns (updates: List<Updates>, lastId: Id)
-
-        fetchProject():
-            returns (projectXml: String, lastId: Id)
-    \end{minted}
-\end{algorithm}
-
-When the server recieves a \verb|sendUpdate| call, it compares \verb|baseId| against \verb|lastId|. If the ids match, the server commits the update and notifies all connected clients about the update. If the ids don't match, the server notifies the author of the update about the failure.
-
-When the server recieves a \verb|synchronize| call, it loads the state of the project at \verb|baseId| and checks for conflicts using Transaction Replay. If there are no conflicts, the server applies the updates to the latest state of the project. If there are conflicts, the updates are discarded. Finally, the server sends the state of the project to the client, setting the \verb|updatesApplied| field to indicate whether the client's updates were applied successfully.
-
-TODO: \verb|fetchUpdates|, \verb|init()|
-
-\subsubsection{Client}
-
-\begin{algorithm}
-    \caption{Client}\label{alg:cap}
-    \begin{minted}{kotlin}
-    State:
-        lastServerId: Id
-        lastId: Id | Uid
-        project: ProjectDatabase
-        unconfirmedUpdates: Queue<Update>
-        server: ServerConnection
-
-    Handlers:
-        processLocalUpdate(update: Update):
-            project.apply(update)
-            unconfirmedUpdates.push(update)
-            server.sendUpdate(update, lastId)
-            lastId = update.id
-
-        processServerUpdate(update: Update, baseId)
-            if (baseId == lastId) {
-                project.apply(update)
-                lastId = update.id
-                lastServerId = update.id
-            } else if (update == unconfirmedUpdates.first()) {
-                // confirmation for an unconfirmed update
-                unconfirmedUpdates.pop()
-                lastServerId = update.id
-            } else {
-                server.synchronize(unconfirmedUpdates.toList(), lastServerId)
-            }
-
-        processCommitFailure(failedUpdate: Update)
-            server.synchronize(unconfirmedUpdates.toList(), lastServerId)
-    \end{minted}
-\end{algorithm}
 
 
 \newpage
