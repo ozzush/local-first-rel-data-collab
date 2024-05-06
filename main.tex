@@ -323,7 +323,7 @@ Google Wave had features such as real-time collaboration, allowing users to work
 Despite its innovative features, Google Wave failed to gain popularity. Google discontinued Google Wave in August 2010 due to low user adoption, but its technology and concepts influenced subsequent Google products like Google Docs and Google Drive.
 
 \subsection{Local-first Software}
-Local-first software was first formalized in 2019. The original paper \cite{localfirst} suggests 7 principles of local-first software. Here I will list 4 which I find the most relevant.
+Local-first software was first formalized in 2019. The original paper \cite{localfirst} suggests 7 principles of local-first software. I will list 4 which I find the most relevant in the context of this work, because they pertain to the functionality of software.
 \begin{itemize}
     \item \textbf{Synchronization across devices} \\
     Imagine a client who uses a document editor on multiple devices. Synchronization involves tracking changes made by the client on one device and ensuring these changes are reflected across all other devices used by the client. In the end data on all devices must reach the same state. This is a very convenient feature that lets clients acces their work from any device.
@@ -432,7 +432,7 @@ The second one is referential integrity constraint violation. It can happen when
 
 The third one is numeric constraint violation like lower and upper bounds. Since some numeric attributes behave like counters with additive updates, it's possible to get overflow or underflow after merging concurrent updates. In this case the more recent updates are reverted.
 
-The approach with issuing undo updates is not fit for all cases. For example some operations might have further side-effects, like sending an email or charging a bank account.  An undo operation can't revert the impact made on the external world. A paper on CRDT \cite{crdt} suggests that this problem could be solved by introducing quotas for certain operation. For example, in case of a counter supports both increments and decrements, but mustn't go below zero, let's impose the following restriction: a client can't issue more decrements than the number of increments he personally issued. If a device wants to decrement more, it can contact other clients to redistribute the allowed decrements. Still, this restriction is overly strong. The other solution to maintain the global invariant is to synchronize, but that defeats the purpose of CRDT.
+The approach with issuing undo updates is not fit for all cases. For example some operations might have further side-effects, like sending an email or charging a bank account.  An undo operation can't revert the impact made on the external world. A paper on CRDT \cite{crdt} suggests that this problem could be solved by introducing quotas for certain operation. For example, in case of a counter that supports both increments and decrements, but mustn't go below zero, let's impose the following restriction: a client can't issue more decrements than the number of increments he personally issued. If a device wants to decrement more, it can contact other clients to redistribute the allowed decrements. Still, this restriction is overly strong. The other solution to maintain a global invariant is to synchronize, but that defeats the purpose of CRDT.
 
 \section{Approaches}
 In this section I will describe approaches considered during the course of my work.
@@ -922,22 +922,28 @@ The synchronization phase consists of the following steps:
 
 \section{Implementation}
 
-A prototype of the protocol described in \Cref{sec:protocol} was implemented\cite{prototype}. In the implementation WebSockets are used to communicate updates from clients to the server and from the server to clients, and HTTP is used for synchronization and fetching of the log. This architecture mimicks the architecture of GanttProjects's Colloboque to ease integration with the main codebase.
+\subsection*{Protocol Prototype}
 
-Additionally, some changes were made to Colloboque to facilitate new protocol implementation.
+A prototype of the protocol described in \Cref{sec:protocol} was implemented\cite{prototype}. In the implementation WebSockets are used to communicate updates from clients to the server and from the server to clients, and HTTP is used for synchronization and fetching of the log. This architecture mimicks the architecture of GanttProjects's Colloboque to ease integration with the main codebase.
 
 \subsection*{jOOQ}
 
-Firstly, the use of jOOQ library \cite{jooq} was integrated into Colloboque. jOOQ can generate Java classes based on the database schema, describing tables, columns, and so on. These generated classes provide type-safe access to the database objects, eliminating the need for manual SQL string concatenation and reducing the risk of SQL injection attacks. jOOQ also abstracts away the differences between SQL dialects. This allows to write database-agnostic code that can be easily ported.
+The use of jOOQ library \cite{jooq} was integrated into Colloboque. jOOQ can generate Java classes based on the database schema, describing tables, columns, and so on. These generated classes provide type-safe access to the database objects, eliminating the need for manual SQL string concatenation and reducing the risk of SQL injection attacks. jOOQ also abstracts away the differences between SQL dialects. This allows to write database-agnostic code that can be easily ported.
 
 \subsection*{Restoring the latest version}
 
-Secondly, persistent loggigng of executed transactions and the project's state was implemented. This would allow the server to use Transaction Replay to check for conflicts. When conflicting updates arrive, the server can use \verb|baseId| to load the state of the project at \verb|baseId| from the project state logs, as well as a list of concurrent updates from transaction logs.
+Persistent loggigng of executed transactions and the project's state was implemented. This would allow the server to use Transaction Replay to check for conflicts. When conflicting updates arrive, the server can use \verb|baseId| to load the state of the project at \verb|baseId| from the project state logs, as well as a list of concurrent updates from transaction logs.
 
-\subsection{Transaction replay}
+\subsection*{Transaction replay}
 
-Thirdly, a function to run transaction replay was implemented.
+A function to run transaction replay was implemented, as well as related functionality, like creating a temporary Postgres database and loading a project from XML into a temporary database. 
 
+\section{Evaluation}
+
+Text not ready, see presentation
+
+\newpage
+\clearpage
 \newpage
 \printbibliography
 \clearpage
