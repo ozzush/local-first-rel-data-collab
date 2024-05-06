@@ -418,10 +418,10 @@ The second one is referential integrity constraint violation. It can happen when
 
 The third one is numeric constraint violation like lower and upper bounds. Since some numeric attributes behave like counters with additive updates, it's possible to get overflow or underflow after merging concurrent updates. In this case the more recent updates are reverted.
 
-The approach with issuing undo updates is not fit for all cases. For example some operations might have further side-effects, like sending an email or charging a bank account.  An undo operation can't revert the impact made on the external world. A paper on CRDT \cite{crdt} suggests that this problem could be solved by introducing quotas for certain operation. For example, in case of a counter that supports both increments and decrements, but mustn't go below zero, let's impose the following restriction: a client can't issue more decrements than the number of increments he personally issued. If a device wants to decrement more, it can contact other clients to redistribute the allowed decrements. Still, this restriction is overly strong. The other solution to maintain a global invariant is to synchronize, but that defeats the purpose of CRDT.
+The approach with issuing undo updates is not fit for all cases. For example some operations might have further side-effects, like sending an email or charging a bank account.  An undo operation can't revert the impact made on the external world. A paper on CRDT \cite{crdt} suggests that this problem could be solved by introducing quotas for certain operations. For example, in case of a counter that supports both increments and decrements, but mustn't go below zero, let's impose the following restriction: a client can't issue more decrements than the number of increments it issued. If a device wants to decrement more, it can contact other clients to redistribute the allowed decrements. Still, this restriction is overly strong. Another solution to maintain a global invariant is to synchronize, but that defeats the purpose of CRDT.
 
 \section{Approaches}
-In this section I will describe approaches considered during the course of my work.
+This section describes approaches considered during the course of my work.
 
 \subsection{CRDT approach}
 The first approach to enabling local-first collaboration in GanttProject is to implement a CRDT for relational data. With a robust relational data CRDT, the task would be very straightforward. Each client can store a replica of a CRDT object and propagate its updates to other clients either through a centralized server or a peer-to-peer connection.
@@ -433,9 +433,9 @@ The described relational data CRDT is implemented in a library for Crystal calle
 Taking into account the amount of work required to employ this approach and the assiciated concerns it was decided to think of other approaches which would be easier to implement and integrate with the existing codebase.
 
 
-\subsection{Time Warp approach}
+\subsection{Time Warp approach}\label{sec:timewarp}
 
-In distributed systems, "time warp" refers to a technique used to handle inconsistencies in the ordering of events across multiple nodes. In such systems, events may occur concurrently at different nodes. Due to network partitions and communication delays, the order in which events are observed can be different at different nodes.
+In distributed systems, time warp \cite{timewarp1} refers to a technique used to handle inconsistencies in the ordering of events across multiple nodes. In such systems, events may occur concurrently at different nodes. Due to network partitions and communication delays, the order in which events are observed can be different at different nodes.
 
 Time warp allows a node to rewind its state to apply an out-of-order event. After that the node can also reapply the events that were undone during the rewind stage. See \Cref{fig:timewarpmain} for a demonstration of time warping.
 
@@ -498,58 +498,47 @@ Time warp allows a node to rewind its state to apply an out-of-order event. Afte
     \label{fig:timewarpmain}
 \end{figure}
 
-This technique can be used to allow local-first collaboration with the help of a centralized server. Assume that the clients are able to perform time warp. The centralized server receives update messages from clients and writes them to an append-only log. Let clients adhere to the following algorithm when producing updates:
-
-\begin{enumerate}
-    \item Add an update to the local log
-    \item Notify the server about the update
-    \item Wait for the server to process the update
-    \item receive response from the server that the update was successfully committed
-    \item Mark the update as committed
-\end{enumerate}
-
-Alternatively if the client went out of sync:
-
-\begin{enumerate}
-    \item Add an update to the local log
-    \item Notify the server about the update
-    \item Wait for the server to process the update
-    \item receive response from the server that the update is out of sync. The server also sends the updates that must be applied by this client to sync with the server.
-    \item Client uses time warp to undo local updates and apply sync updates.
-    \item If local updates produce no conflicts, they are applied again, otherwise the user can be prompted to resolve the conflicts. The original updates are discarded, and if the user resolves the conflict, new updates are generated.
-\end{enumerate}
-
-Notice that even if the update that the server received is out of sync, it can still be committed if it produces no conflicts. When the server sends the client a list of sync updates, it can also inform the client that the out of sync update was committed successfuly after the sync updates. Then the client can also apply this local update after applying all the sync updates - there is no need to discard it. TODO: MAYBE UNCLEAR, ADD PICTURE?
+This technique can be used to allow local-first collaboration with the help of a centralized server. Assume that the clients are able to perform time warp. The centralized server receives update messages from clients and writes them to an append-only log, thus establishin a total order of events. Clients can learn the established order from the server and reorder events in their local logs accordingly.
 
 To employ this approach, it is crucial that the client is able to revert recent updates. Unfortunately, this functionality doesn't come built-in with most relational databases, including Postgres. To allow time warp on a database, one would have to be able to generate undo operations for all possible transactions. One notable challenge is recovering rows that where deleted as a side-effect of removing a foreign key they were referencing. Another challenge comes from the fact that transactions usually can't be organized into a strictly ordered sequence. In Postgres, multiple transaction isolation levels are supported, and only the strongest level, called SERIALIZABLE, has this property. See Serializable Isolation Level documentation \cite{tisolevel} for more details.
 
-\subsection{Transaction replay approach}
+\subsection{Transaction replay approach}\label{sec:transactreplay}
 
 The Colloboque server stores a history of committed Postgres database transactions and the state of the project after each transaction. When a client loses connection to the server, he keeps commiting transactions locally. When connection is re-established, the set of changes applied by the client is sent to the server. The server then takes the state of the project that the out-of-sync client based its changes on and uses it to start two transactions. The first transaction contains all the changes that the client applied locally, while the second transaction contains all the changes processed by the server while the client was disconnected. 
 
 \subsubsection{Postgres transaction isolation levels} 
 In the described approach transactions have to make use of isolation level REPEATABLE READ, which is stronger than the default transaction isolation level.
 
-The default mode for transactions in Postgres is READ COMMITTED \cite{tisolevel}. It means that a transaction is allowed to read changes that where committed by other transactions after the current transaction has started. 
+The default mode for transactions in Postgres is READ COMMITTED \cite{tisolevel}. It means that a transaction is allowed to read changes that where committed by other transactions after the current transaction has started. Example of a possible transaction behavior can be found on \Cref{fig:readcomm}
 
-\begin{minted}[frame=single,linenos]{sql}
-BEGIN;
-SELECT * FROM data; -- 0 rows
--- another transaction commits inserting a row
-SELECT * FROM data; -- 1 row
-COMMIT;
-\end{minted}
+\begin{figure}[H]
+    \centering
+    \begin{minted}[frame=single,linenos]{sql}
+    BEGIN;
+    SELECT * FROM data; -- 0 rows
+    -- another transaction commits inserting a row
+    SELECT * FROM data; -- 1 row
+    COMMIT;
+    \end{minted}
+    \caption{Behaviour of a transaction with isolation level READ COMMITTED}
+    \label{fig:readcomm}
+\end{figure}
 
-When using REPEATABLE READ transaction mode, the changes from newly committed transactions are not visible, but if the current transaction makes a conflicting update, it will lead to a serialization error.
+When using REPEATABLE READ transaction mode, the changes from newly committed transactions are not visible, but if the current transaction makes a conflicting update, it will lead to a serialization error. Example of a possible transaction behavior can be found on \Cref{fig:repread}
 
-\begin{minted}[frame=single,linenos]{sql}
-BEGIN TRANSACTION ISOLATION LEVEL REPEATABLE READ;
-SELECT * FROM data; -- 1 row
--- another transaction commits deleting a row
-SELECT * FROM data; -- 1 row
-UPDATE data SET col = 1;
--- ERROR:  could not serialize access due to concurrent delete
-\end{minted}
+\begin{figure}[H]
+    \centering
+    \begin{minted}[frame=single,linenos]{sql}
+    BEGIN TRANSACTION ISOLATION LEVEL REPEATABLE READ;
+    SELECT * FROM data; -- 1 row
+    -- another transaction commits deleting a row
+    SELECT * FROM data; -- 1 row
+    UPDATE data SET col = 1;
+    -- ERROR:  could not serialize access due to concurrent delete
+    \end{minted}
+    \caption{Behaviour of a transaction with isolation level REPEATABLE READ}
+    \label{fig:repread}
+\end{figure}
 
 With this approach the Postgres database can reliably identify whether the changes that the client made offline produce confilcts. If there are conflicts, the server discards the changes. The client will then have to sync with the server. An out-of-sync version of the document can be saved as a copy so that the user can compare the two versions manually.
 
@@ -557,11 +546,13 @@ With this approach the Postgres database can reliably identify whether the chang
 
 Data branching in databases refers to the practice of creating divergent versions of data within a database, often for the purpose of testing, experimentation, or parallel development. This concept is similar to branching in version control systems like Git, but applied to data within a database rather than code in a repository.
 
-Data branching could solve some problems posed by the Time Warp and Transaction replay approaches. In case of Time Warp, there is no need to undo operations if there exists a branch that contains the required version of the project. In case of Transaction replay, there would be no need to store the state of the project after each transaction. 
+Thin data branching refers to a data branching approach where lightweight branches are created whithout copying the whole database.
 
-One example of data branching for Postgres is Neon \cite{neon}. Unfortunately, the free version of Neon only allows to create 10 branches, which is not enough for the purposes of GanttProject.
+Data branching could solve some problems posed by the Time Warp and Transaction replay approaches. In case of Time Warp, there is no need to undo operations if there exists a branch that contains the required version of the project. In case of Transaction Replay, there would be no need to store the state of the project after each transaction. 
 
-TODO: WRITE MORE?
+One example of thin data branching for Postgres is Neon \cite{neon}. Unfortunately, the free version of Neon only allows to create 10 branches, which is not enough for the purposes of GanttProject.
+
+Overall, this approach could be used to improve performance of Time Warp and Transaction Replay approaches, but the available solutions are typically paid, and implementing thin data branching from scratch is challenging.
 
 \section{GanttProject}
 
@@ -613,11 +604,15 @@ To avoid that, the data model on the Colloboque server differs from the one on t
 
 \subsection{Outline}
 
-The client can generate local updates and accept updates from the server. Local and server updates are processed synchronously by the client. Local updates are communicated to the server after the client applies them. The server processes all client updates synchronously and establishes a total order of the events. The client has to follow the total order of the events established by the server. The client can deviate from the established order because it applies local updates without getting confirmation from the server. Upon discovering errors in the order of applied events, the client enters synchronization phase. In synchronization phase the client stops accepting updates. It takes all local updates that are not confirmed by the server yet, and sends them to the server. The server uses Transaction Replay approach (TODO: CITE THE CORRESPONDING SECTION) to check whether applying the updates produces conflicts. If it doesn't produce conflicts, the server applies the updates. Finally, the server responds to the client with a list of updates that the client must apply to get the latest state of the project and an indication whether the updates that the client sent were applied successfully.
+The resulting protocol is a mix of Time Warp (\Cref{sec:timewarp}) and Transaction Replay (\Cref{sec:transactreplay}) approaches.
+
+The client can generate local updates and accept updates from the server. Local and server updates are processed synchronously by the client. Local updates are communicated to the server after the client applies them. The server processes all client updates synchronously and establishes a total order of the events. The client has to follow the total order of the events established by the server. The client can deviate from the established order because it applies local updates without getting confirmation from the server. Upon discovering errors in the order of applied events, the client enters synchronization phase. In synchronization phase the client stops accepting updates. It takes all local updates that are not confirmed by the server yet, and sends them to the server. The server uses Transaction Replay approach to check whether applying the updates produces conflicts. If it doesn't produce conflicts, the server applies the updates. Finally, the server responds to the client with a list of updates that the client must apply to get the latest state of the project and an indication whether the updates that the client sent were applied successfully.
 
 \subsection{Database model}
 
-Consider that all database transactions are deterministic and run with isolation level SERIALIZEABLE. Then the database state can be accurately described by a linear history of transactions. In more formal terms, project database is \textit{simulated} by a linear history of transactions. (TODO: DEFINE FORMALLY?) The protocol specification uses an append-only log of updates to represent the history of transactions and describe the state of the database.
+Consider that all database transactions are deterministic and run with isolation level SERIALIZEABLE. Then the database state can be accurately described by a linear history of transactions. 
+%In more formal terms, project database is \textit{simulated} by a linear history of transactions. (TODO: DEFINE FORMALLY?) 
+The protocol specification uses an append-only log of updates to represent the history of transactions and describe the state of the database.
 
 \subsection{Server}
 
@@ -715,6 +710,9 @@ From the perspective of the \verb|serverLog|, the update can be either one of th
     \item The situation doesn't match any of the other cases. This implies that some notifications from the server have been lost. It is only possible in case of this client's or a server's failure and is omitted here.
 \end{enumerate}
 
+
+An illustration of these cases is displayed on \Cref{fig:update-server-cases}
+
 \begin{figure}
     \centering
     \begin{tikzpicture}[]
@@ -744,7 +742,6 @@ From the perspective of the \verb|serverLog|, the update can be either one of th
     \caption*{Black nodes represent the current log. Blue nodes represent updates that don't match any update in the log. An arrow from \texttt{x} to \texttt{y} shows that \texttt{x.baseId == y.id}.}
 \end{figure}
 
-An illustration of these cases is displayed on \Cref{fig:update-server-cases}
 
 
 From the perspective of the \verb|clientLog|, the update can be either one of five cases:
